@@ -99,14 +99,6 @@ const UserSchema = new mongoose.Schema(
     emergencyContactNumber: {
       type: String,
     }, // existing schema me ye fields add karo
-    resetPasswordOTP: {
-      type: String,
-      default: null,
-    },
-    resetPasswordOTPExpiry: {
-      type: Date,
-      default: null,
-    },
   },
   {
     timestamps: true,

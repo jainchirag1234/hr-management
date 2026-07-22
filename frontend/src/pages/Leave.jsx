@@ -617,6 +617,7 @@ const Leave = () => {
                         required
                         value={applyForm.startDate}
                         onChange={handleApplyChange}
+                        max={new Date().toISOString().split("T")[0]}
                         className="w-full border border-gray-300 rounded p-2 text-sm focus:ring-1 focus:ring-gray-400 focus:border-gray-400 outline-none"
                       />
                     </div>
@@ -649,6 +650,7 @@ const Leave = () => {
                         required
                         value={applyForm.startDate}
                         onChange={handleApplyChange}
+                        min={new Date().toISOString().split("T")[0]}
                         className="w-full border border-gray-300 rounded p-2 text-sm focus:ring-1 focus:ring-gray-400 focus:border-gray-400 outline-none"
                       />
                     </div>
@@ -663,6 +665,7 @@ const Leave = () => {
                         min={applyForm.startDate}
                         value={applyForm.endDate}
                         onChange={handleApplyChange}
+                        min={new Date().toISOString().split("T")[0]}
                         className="w-full border border-gray-300 rounded p-2 text-sm focus:ring-1 focus:ring-gray-400 focus:border-gray-400 outline-none"
                       />
                     </div>

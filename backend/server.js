@@ -35,8 +35,8 @@ app.use("/api/user", userRoutes);
 app.use("/api/departments", departmentRoutes);
 app.use("/api/designations", designationRoutes);
 app.use("/api/attendance", attendanceRoutes);
-app.use("/api/leave-types", leaveTypeRoutes); // ✅ Fix: leaveTypeRoutes use karo
-app.use("/api/leaves", leaveRoutes); // ✅ Leave applications
+app.use("/api/leave-types", leaveTypeRoutes);
+app.use("/api/leaves", leaveRoutes);
 app.use("/api/holidays", holidayRoutes);
 app.use("/api/announcements", announcementRoutes);
 

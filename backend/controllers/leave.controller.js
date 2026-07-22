@@ -1,5 +1,6 @@
 import Leave from "../models/leave.js";
-
+import User from "../models/User.js";
+import sendEmail from "../utils/sendEmail.js";
 // ---------------------------------------------------
 // Schema ke enum se match karta valid leaveType list
 // ---------------------------------------------------
@@ -66,6 +67,24 @@ export const applyLeave = async (req, res) => {
       reason,
     });
 
+    const admins = await User.find({ role: "Admin" }).select("email");
+    const adminEmails = admins.map((a) => a.email).filter(Boolean);
+
+    if (adminEmails.length > 0) {
+      await sendEmail({
+        to: adminEmails.join(","),
+        subject: `New Leave Request - ${req.user.firstName} ${req.user.lastName}`,
+        html: `
+          <h3>New Leave Request</h3>
+          <p><b>Employee:</b> (${req.user.firstName} ${req.user.lastName}) (${req.user.email})</p>
+          <p><b>Leave Type:</b> ${leaveType}</p>
+          <p><b>From:</b> ${startDate} <b>To:</b> ${endDate}</p>
+          <p><b>Total Days:</b> ${totalLeaveDays}</p>
+          <p><b>Reason:</b> ${reason}</p>
+        `,
+      });
+    }
+
     return res.status(201).json({
       success: true,
       message: "Leave application submit ho gayi",
@@ -74,7 +93,7 @@ export const applyLeave = async (req, res) => {
   } catch (error) {
     return res.status(500).json({
       success: false,
-      message: "Leave apply karte waqt error aayi",
+      message: "Leave apply error",
       error: error.message,
     });
   }
@@ -275,6 +294,29 @@ export const approveLeave = async (req, res) => {
 
     await leave.save();
 
+    const populatedLeave = await leave.populate(
+      "employee",
+      "firstName lastName email",
+    );
+
+    await sendEmail({
+      to: populatedLeave.employee.email,
+      subject: "Your leave has been approved.",
+      html: `
+    <h3>Leave Approved ✅</h3>
+    <p>Hi ${populatedLeave.employee.firstName},</p>
+
+    <p><b>Leave Type:</b> ${leave.leaveType}</p>
+    <p><b>From:</b> ${leave.startDate.toDateString()} <b>To:</b> ${leave.endDate.toDateString()}</p>
+
+    ${
+      leave.adminComment?.trim()
+        ? `<p><b>Admin Comment:</b> ${leave.adminComment}</p>`
+        : ""
+    }
+  `,
+    });
+
     return res.status(200).json({
       success: true,
       message: "Leave approve ",
@@ -320,10 +362,25 @@ export const rejectLeave = async (req, res) => {
     leave.approvedOrRejectedDate = new Date();
 
     await leave.save();
+    const populatedLeave = await leave.populate(
+      "employee",
+      "firstName lastName email",
+    );
 
+    await sendEmail({
+      to: populatedLeave.employee.email,
+      subject: "Your leave request has been rejected",
+      html: `
+        <h3>Leave Rejected ❌</h3>
+        <p>Hi ${populatedLeave.employee.firstName},</p>
+        <p><b>Leave Type:</b> ${leave.leaveType}</p>
+        <p><b>From:</b> ${leave.startDate.toDateString()} <b>To:</b> ${leave.endDate.toDateString()}</p>
+        <p><b>Admin Comment:</b> ${leave.adminComment}</p>
+      `,
+    });
     return res.status(200).json({
       success: true,
-      message: "Leave reject kar di gayi",
+      message: "Leave rejected",
       data: leave,
     });
   } catch (error) {

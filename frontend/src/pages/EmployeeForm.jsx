@@ -552,6 +552,7 @@ function EmployeeForm({
             value={form.dateOfBirth}
             onChange={handleChange}
             autoComplete="off"
+            max={new Date().toISOString().split("T")[0]}
             className={fieldClass("dateOfBirth")}
           />
         </div>
@@ -585,6 +586,7 @@ function EmployeeForm({
             value={form.joiningDate}
             onChange={handleChange}
             autoComplete="off"
+            max={new Date().toISOString().split("T")[0]}
             className={fieldClass("joiningDate")}
           />
           {errors.joiningDate && (

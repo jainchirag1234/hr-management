@@ -18,7 +18,7 @@ api.interceptors.request.use(
     }
     return config;
   },
-  (error) => Promise.reject(error)
+  (error) => Promise.reject(error),
 );
 
 // 401 response interceptor — token expired ya missing hone par auto-logout
@@ -27,7 +27,9 @@ api.interceptors.response.use(
   (error) => {
     if (error.response) {
       if (error.response.status === 401) {
-        console.error("[axios] 401 Unauthorized — clearing session and redirecting to login");
+        console.error(
+          "[axios] 401 Unauthorized — clearing session and redirecting to login",
+        );
         localStorage.removeItem("token");
         localStorage.removeItem("user");
         // Only redirect if not already on login page
@@ -35,15 +37,23 @@ api.interceptors.response.use(
           window.location.href = "/login";
         }
       } else if (error.response.status === 502) {
-        console.error("[axios] 502 Bad Gateway — Backend server is likely offline.");
-        alert("Backend server is not running. Please start the backend server on port 5000.");
+        console.error(
+          "[axios] 502 Bad Gateway — Backend server is likely offline.",
+        );
+        alert(
+          "Backend server is not running. Please start the backend server on port 5000.",
+        );
       }
     } else if (error.request) {
-      console.error("[axios] Network Error — No response received from the server.");
-      alert("Network Error: Could not reach the server. Please check if your backend server is running.");
+      console.error(
+        "[axios] Network Error — No response received from the server.",
+      );
+      alert(
+        "Network Error: Could not reach the server. Please check if your backend server is running.",
+      );
     }
     return Promise.reject(error);
-  }
+  },
 );
 
 export default api;

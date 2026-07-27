@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/immutability */
 /* eslint-disable react-hooks/set-state-in-effect */
 /* eslint-disable react-hooks/exhaustive-deps */
 import { useState, useEffect, useContext, useMemo } from "react";
@@ -20,7 +21,7 @@ const VALID_LEAVE_TYPES = [
 ];
 
 const Leave = () => {
-  const { user } = useContext(AuthContext);
+  const { user, socket } = useContext(AuthContext); // <-- socket bhi liya
   const role = (user?.role ?? "").toString().trim().toLowerCase();
   const isAdmin = role === "admin";
 
@@ -43,11 +44,12 @@ const Leave = () => {
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectData, setRejectData] = useState({ id: null, reason: "" });
 
-  // NEW: Approve modal state
+  // Approve modal state
   const [showApproveModal, setShowApproveModal] = useState(false);
   const [approveData, setApproveData] = useState({ id: null, reason: "" });
   const [approveSubmitting, setApproveSubmitting] = useState(false);
 
+  const today = new Date().toISOString().split("T")[0];
   const [filters, setFilters] = useState({
     status: "",
     employee: "",
@@ -99,6 +101,39 @@ const Leave = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, isAdmin]);
 
+  // ---------------- SOCKET.IO LIVE NOTIFICATIONS ----------------
+  useEffect(() => {
+    if (!socket) return;
+
+    if (isAdmin) {
+      // Admin ko notify karo jab koi employee naya leave apply kare
+      const handleNewLeave = (data) => {
+        showMessage("success", data.message || "New leave request received.");
+        fetchLeaves();
+      };
+      socket.on("newLeaveApplied", handleNewLeave);
+
+      return () => {
+        socket.off("newLeaveApplied", handleNewLeave);
+      };
+    } else {
+      // Employee ko notify karo jab uski leave approve/reject ho
+      const handleStatusUpdate = (data) => {
+        showMessage(
+          data.status === "Approved" ? "success" : "error",
+          data.message ||
+            `Your leave has been ${data.status?.toLowerCase() || "updated"}.`,
+        );
+        fetchLeaves();
+      };
+      socket.on("leaveStatusUpdated", handleStatusUpdate);
+
+      return () => {
+        socket.off("leaveStatusUpdated", handleStatusUpdate);
+      };
+    }
+  }, [socket, isAdmin]);
+
   // Handle Notifications
   const showMessage = (type, text) => {
     setMessage({ type, text });
@@ -147,13 +182,11 @@ const Leave = () => {
 
   // ---------------- ADMIN HANDLERS ----------------
 
-  // Open Approve modal instead of window.confirm
   const openApproveModal = (id) => {
     setApproveData({ id });
     setShowApproveModal(true);
   };
 
-  // Submit Approve (no comment needed)
   const handleApproveSubmit = async (id) => {
     setApproveSubmitting(true);
     try {
@@ -357,14 +390,6 @@ const Leave = () => {
         <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-lg font-semibold text-gray-700">🔍 Filters</h3>
-            <button
-              onClick={() =>
-                setFilters({ status: "", employee: "", leaveType: "" })
-              }
-              className="text-xs font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors"
-            >
-              Clear All
-            </button>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
@@ -615,9 +640,9 @@ const Leave = () => {
                         type="date"
                         name="startDate"
                         required
+                        min={today}
                         value={applyForm.startDate}
                         onChange={handleApplyChange}
-                        max={new Date().toISOString().split("T")[0]}
                         className="w-full border border-gray-300 rounded p-2 text-sm focus:ring-1 focus:ring-gray-400 focus:border-gray-400 outline-none"
                       />
                     </div>
@@ -629,7 +654,7 @@ const Leave = () => {
                         type="date"
                         name="endDate"
                         required
-                        min={applyForm.startDate}
+                        min={applyForm.startDate || today}
                         value={applyForm.endDate}
                         onChange={handleApplyChange}
                         className="w-full border border-gray-300 rounded p-2 text-sm focus:ring-1 focus:ring-gray-400 focus:border-gray-400 outline-none"
@@ -648,9 +673,9 @@ const Leave = () => {
                         type="date"
                         name="startDate"
                         required
+                        min={today}
                         value={applyForm.startDate}
                         onChange={handleApplyChange}
-                        min={new Date().toISOString().split("T")[0]}
                         className="w-full border border-gray-300 rounded p-2 text-sm focus:ring-1 focus:ring-gray-400 focus:border-gray-400 outline-none"
                       />
                     </div>
@@ -662,10 +687,9 @@ const Leave = () => {
                         type="date"
                         name="endDate"
                         required
-                        min={applyForm.startDate}
+                        min={applyForm.startDate || today}
                         value={applyForm.endDate}
                         onChange={handleApplyChange}
-                        min={new Date().toISOString().split("T")[0]}
                         className="w-full border border-gray-300 rounded p-2 text-sm focus:ring-1 focus:ring-gray-400 focus:border-gray-400 outline-none"
                       />
                     </div>

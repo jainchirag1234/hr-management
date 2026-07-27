@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useEffect, useContext } from "react";
 import { AuthContext } from "../context/AuthContext";
 import { getUserById } from "../services/auth.service";
@@ -76,13 +77,6 @@ function Profile() {
     });
   };
 
-  const statusStyles = {
-    Active: "bg-green-100 text-green-700",
-    Inactive: "bg-gray-100 text-gray-600",
-    Resigned: "bg-amber-100 text-amber-700",
-    Terminated: "bg-red-100 text-red-700",
-  };
-
   // Avatar initials fallback
   const initials = [employee.firstName?.[0], employee.lastName?.[0]]
     .filter(Boolean)
@@ -93,10 +87,8 @@ function Profile() {
     <div className="w-full h-full min-h-[calc(100vh-80px)] bg-gray-50 p-4 sm:p-6 lg:p-8 flex justify-center items-start">
       <div className="bg-white rounded-3xl shadow-xl overflow-hidden border border-gray-100 w-full max-w-7xl">
         <div className="p-8 sm:p-12 flex flex-col gap-10 sm:gap-14">
-          
           {/* Top Row: Profile (1/3) & Personal Info (2/3) */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 sm:gap-12">
-            
             {/* Profile Overview */}
             <div className="lg:col-span-1 flex flex-col items-center text-center bg-gray-50/50 p-8 rounded-3xl border border-gray-100">
               <div className="relative mb-6">
@@ -119,26 +111,32 @@ function Profile() {
                   ></span>
                 </div>
               </div>
-              
+
               <h2 className="text-3xl font-extrabold text-gray-900 tracking-tight">
                 {fullName || "-"}
               </h2>
               <p className="text-indigo-600 font-bold text-lg mt-2">
                 {employee.designation || "-"}
               </p>
-              
+
               <div className="flex flex-col items-center gap-3 mt-6 w-full">
                 <div className="w-full bg-white px-5 py-3 rounded-2xl border border-gray-100 shadow-sm flex justify-between items-center">
-                  <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Dept</span>
-                  <span className="text-sm font-semibold text-gray-800">{employee.department || "-"}</span>
+                  <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">
+                    Dept
+                  </span>
+                  <span className="text-sm font-semibold text-gray-800">
+                    {employee.department || "-"}
+                  </span>
                 </div>
                 <div className="w-full bg-white px-5 py-3 rounded-2xl border border-gray-100 shadow-sm flex justify-between items-center">
-                  <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Status</span>
+                  <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">
+                    Status
+                  </span>
                   <span
                     className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-widest ${
-                      employee.status === 'Active' 
-                        ? 'bg-green-100 text-green-700' 
-                        : 'bg-gray-100 text-gray-700'
+                      employee.status === "Active"
+                        ? "bg-green-100 text-green-700"
+                        : "bg-gray-100 text-gray-700"
                     }`}
                   >
                     {employee.status || "Unknown"}
@@ -163,7 +161,6 @@ function Profile() {
                 <ProfileField label="Address" value={employee.address} span />
               </Section>
             </div>
-            
           </div>
 
           <hr className="border-gray-100 border-t-2" />
@@ -210,7 +207,6 @@ function Profile() {
               </Section>
             </div>
           </div>
-          
         </div>
       </div>
     </div>

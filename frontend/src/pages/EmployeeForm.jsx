@@ -6,8 +6,6 @@ const GENDERS = ["Male", "Female", "Other"];
 
 const EMPLOYMENT_TYPES = ["Full Time", "Part Time", "Contract", "Intern"];
 
-const ROLES = ["Admin", "Employee"];
-
 const STATUSES = ["Active", "Inactive", "Resigned", "Terminated"];
 
 // Matches the backend UserSchema field-for-field
@@ -25,7 +23,7 @@ const emptyEmployee = {
   designation: "",
   salary: "",
   employmentType: "",
-  role: "Employee",
+
   status: "Active",
   emergencyContactName: "",
   emergencyContactNumber: "",
@@ -247,7 +245,7 @@ function EmployeeForm({
       emergencyContactNumber: form.emergencyContactNumber,
       salary: form.salary === "" ? undefined : Number(form.salary),
       profileImage: form.profileImage || undefined,
-      ...(mode === "admin" ? { role: form.role, status: form.status } : {}),
+      ...(mode === "admin" ? { status: form.status } : {}),
       ...(form.password ? { password: form.password } : {}),
     };
 
@@ -681,25 +679,6 @@ function EmployeeForm({
             {errors.salary && (
               <p className="text-red-500 text-sm mt-1">{errors.salary}</p>
             )}
-          </div>
-        )}
-
-        {/* Role - admin only */}
-        {mode === "admin" && (
-          <div>
-            <label className="block mb-1 font-medium">Role</label>
-            <select
-              name="role"
-              value={form.role}
-              onChange={handleChange}
-              className={fieldClass("role")}
-            >
-              {ROLES.map((r) => (
-                <option key={r} value={r}>
-                  {r}
-                </option>
-              ))}
-            </select>
           </div>
         )}
 

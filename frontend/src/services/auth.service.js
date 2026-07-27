@@ -272,7 +272,7 @@ export const applyLeave = (data) => {
 };
 
 export const getMyLeaves = () => {
-  return api.get("/leaves/my-leaves");
+  return api.get("/leaves/my");
 };
 
 export const cancelLeave = (id) => {
@@ -300,4 +300,25 @@ export const deleteLeave = (id) => {
 // ======================================
 export const getAllLeaveTypes = () => {
   return api.get("/leave-types");
+};
+
+// ======================================
+// NOTIFICATIONS
+// ======================================
+export const getMyNotifications = (unreadOnly = false) => {
+  return api.get("/notification", {
+    params: unreadOnly ? { unreadOnly: "true" } : {},
+  });
+};
+
+export const markNotificationRead = (id) => {
+  return api.patch(`/notification/${id}/read`);
+};
+
+export const markAllNotificationsRead = () => {
+  return api.patch("/notification/read-all");
+};
+
+export const deleteNotification = (id) => {
+  return api.delete(`/notification/${id}`);
 };

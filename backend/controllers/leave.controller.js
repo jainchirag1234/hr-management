@@ -1,8 +1,11 @@
-import Leave from "../models/leave.js";
+// controllers/leaveController.js
+import Leave from "../models/Leave.js";
 import User from "../models/User.js";
 import sendEmail from "../utils/sendEmail.js";
+import { createNotification } from "./notification.controller.js";
+
 // ---------------------------------------------------
-// Schema ke enum se match karta valid leaveType list
+// Valid leaveType list matching the schema enum
 // ---------------------------------------------------
 const VALID_LEAVE_TYPES = [
   "Casual Leave",
@@ -14,9 +17,9 @@ const VALID_LEAVE_TYPES = [
 ];
 
 // ---------------------------------------------------
-// Helper: total leave days calculate karne ke liye
-// (simple version — weekends/holidays exclude nahi kar rahe,
-// agar chahiye to yahan logic add kar sakte hain)
+// Helper: calculate total leave days
+// (simple version — weekends/holidays are not excluded,
+// add that logic here if needed)
 // ---------------------------------------------------
 const calculateLeaveDays = (startDate, endDate) => {
   const start = new Date(startDate);
@@ -38,14 +41,14 @@ export const applyLeave = async (req, res) => {
     if (!leaveType || !startDate || !endDate || !reason) {
       return res.status(400).json({
         success: false,
-        message: "leaveType, startDate, endDate aur reason zaroori hain",
+        message: "leaveType, startDate, endDate and reason are required",
       });
     }
 
     if (!VALID_LEAVE_TYPES.includes(leaveType)) {
       return res.status(400).json({
         success: false,
-        message: `leaveType inme se hona chahiye: ${VALID_LEAVE_TYPES.join(", ")}`,
+        message: `leaveType must be one of: ${VALID_LEAVE_TYPES.join(", ")}`,
       });
     }
 
@@ -59,17 +62,21 @@ export const applyLeave = async (req, res) => {
     const totalLeaveDays = calculateLeaveDays(startDate, endDate);
 
     const leave = await Leave.create({
-      employee: req.user._id, // auth middleware se aana chahiye
+      employee: req.user._id, // should come from auth middleware
       leaveType,
       startDate,
       endDate,
       totalLeaveDays,
       reason,
+      status: "Pending",
     });
 
-    const admins = await User.find({ role: "Admin" }).select("email");
-    const adminEmails = admins.map((a) => a.email).filter(Boolean);
+    const admins = await User.find({ role: "Admin" }).select(
+      "firstName lastName email",
+    );
 
+    // ---- Email notification to admins ----
+    const adminEmails = admins.map((a) => a.email).filter(Boolean);
     if (adminEmails.length > 0) {
       await sendEmail({
         to: adminEmails.join(","),
@@ -85,15 +92,31 @@ export const applyLeave = async (req, res) => {
       });
     }
 
+    // ---- In-app notification to admins ----
+    await Promise.all(
+      admins.map((admin) =>
+        createNotification({
+          recipient: admin._id,
+          recipientRole: "admin",
+          sender: req.user._id,
+          type: "LEAVE_APPLIED",
+          message: `${req.user.firstName} ${req.user.lastName} has applied for ${leaveType} leave from (${new Date(
+            startDate,
+          ).toLocaleDateString()} - ${new Date(endDate).toLocaleDateString()}). Status: Pending`,
+          relatedLeave: leave._id,
+        }),
+      ),
+    );
+
     return res.status(201).json({
       success: true,
-      message: "Leave application submit ho gayi",
+      message: "Leave application submitted successfully",
       data: leave,
     });
   } catch (error) {
     return res.status(500).json({
       success: false,
-      message: "Leave apply error",
+      message: "Error while applying for leave",
       error: error.message,
     });
   }
@@ -101,7 +124,7 @@ export const applyLeave = async (req, res) => {
 
 // ---------------------------------------------------
 // @desc    Get all leaves (admin) with optional filters
-// @route   GET /api/leaves?status=Pending&employee=<id>
+// @route   GET /api/leaves?status=Pending&employee=<id>&leaveType=Sick Leave
 // @access  Private (admin)
 // ---------------------------------------------------
 export const getAllLeaves = async (req, res) => {
@@ -114,8 +137,8 @@ export const getAllLeaves = async (req, res) => {
     if (leaveType) filter.leaveType = leaveType;
 
     const leaves = await Leave.find(filter)
-      .populate("employee", "name email")
-      .populate("approvedOrRejectedBy", "name email")
+      .populate("employee", "firstName lastName email")
+      .populate("approvedOrRejectedBy", "firstName lastName email")
       .sort({ createdAt: -1 });
 
     return res.status(200).json({
@@ -126,7 +149,7 @@ export const getAllLeaves = async (req, res) => {
   } catch (error) {
     return res.status(500).json({
       success: false,
-      message: "Leaves fetch karte waqt error aayi",
+      message: "Error while fetching leaves",
       error: error.message,
     });
   }
@@ -139,8 +162,13 @@ export const getAllLeaves = async (req, res) => {
 // ---------------------------------------------------
 export const getMyLeaves = async (req, res) => {
   try {
-    const leaves = await Leave.find({ employee: req.user._id })
-      .populate("approvedOrRejectedBy", "name email")
+    const { status } = req.query; // optional filter
+
+    const filter = { employee: req.user._id };
+    if (status) filter.status = status;
+
+    const leaves = await Leave.find(filter)
+      .populate("approvedOrRejectedBy", "firstName lastName email")
       .sort({ createdAt: -1 });
 
     return res.status(200).json({
@@ -151,7 +179,7 @@ export const getMyLeaves = async (req, res) => {
   } catch (error) {
     return res.status(500).json({
       success: false,
-      message: "Aapki leaves fetch karte waqt error aayi",
+      message: "Error while fetching your leaves",
       error: error.message,
     });
   }
@@ -165,13 +193,13 @@ export const getMyLeaves = async (req, res) => {
 export const getLeaveById = async (req, res) => {
   try {
     const leave = await Leave.findById(req.params.id)
-      .populate("employee", "name email")
-      .populate("approvedOrRejectedBy", "name email");
+      .populate("employee", "firstName lastName email")
+      .populate("approvedOrRejectedBy", "firstName lastName email");
 
     if (!leave) {
       return res.status(404).json({
         success: false,
-        message: "Leave record nahi mila",
+        message: "Leave record not found",
       });
     }
 
@@ -182,14 +210,14 @@ export const getLeaveById = async (req, res) => {
   } catch (error) {
     return res.status(500).json({
       success: false,
-      message: "Leave fetch karte waqt error aayi",
+      message: "Error while fetching leave",
       error: error.message,
     });
   }
 };
 
 // ---------------------------------------------------
-// @desc    Update leave details (sirf jab tak Pending ho)
+// @desc    Update leave details (only while still Pending)
 // @route   PUT /api/leaves/:id
 // @access  Private (employee - owner)
 // ---------------------------------------------------
@@ -200,21 +228,21 @@ export const updateLeave = async (req, res) => {
     if (!leave) {
       return res.status(404).json({
         success: false,
-        message: "Leave record nahi mila",
+        message: "Leave record not found",
       });
     }
 
     if (leave.employee.toString() !== req.user._id.toString()) {
       return res.status(403).json({
         success: false,
-        message: "Aap sirf apni leave edit kar sakte hain",
+        message: "You can only edit your own leave",
       });
     }
 
     if (leave.status !== "Pending") {
       return res.status(400).json({
         success: false,
-        message: "Sirf Pending leave hi edit ki ja sakti hai",
+        message: "Only a Pending leave can be edited",
       });
     }
 
@@ -223,7 +251,7 @@ export const updateLeave = async (req, res) => {
     if (leaveType && !VALID_LEAVE_TYPES.includes(leaveType)) {
       return res.status(400).json({
         success: false,
-        message: `leaveType inme se hona chahiye: ${VALID_LEAVE_TYPES.join(", ")}`,
+        message: `leaveType must be one of: ${VALID_LEAVE_TYPES.join(", ")}`,
       });
     }
 
@@ -250,13 +278,13 @@ export const updateLeave = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: "Leave update ho gayi",
+      message: "Leave updated successfully",
       data: leave,
     });
   } catch (error) {
     return res.status(500).json({
       success: false,
-      message: "Leave update karte waqt error aayi",
+      message: "Error while updating leave",
       error: error.message,
     });
   }
@@ -271,19 +299,22 @@ export const approveLeave = async (req, res) => {
   try {
     const { adminComment } = req.body;
 
-    const leave = await Leave.findById(req.params.id);
+    const leave = await Leave.findById(req.params.id).populate(
+      "employee",
+      "firstName lastName email",
+    );
 
     if (!leave) {
       return res.status(404).json({
         success: false,
-        message: "Leave record nahi mila",
+        message: "Leave record not found",
       });
     }
 
     if (leave.status !== "Pending") {
       return res.status(400).json({
         success: false,
-        message: "Yeh leave pehle hi process ho chuki hai",
+        message: "This leave has already been processed",
       });
     }
 
@@ -294,38 +325,42 @@ export const approveLeave = async (req, res) => {
 
     await leave.save();
 
-    const populatedLeave = await leave.populate(
-      "employee",
-      "firstName lastName email",
-    );
-
+    // ---- Email notification to employee ----
     await sendEmail({
-      to: populatedLeave.employee.email,
+      to: leave.employee.email,
       subject: "Your leave has been approved.",
       html: `
-    <h3>Leave Approved ✅</h3>
-    <p>Hi ${populatedLeave.employee.firstName},</p>
+        <h3>Leave Approved ✅</h3>
+        <p>Hi ${leave.employee.firstName},</p>
+        <p><b>Leave Type:</b> ${leave.leaveType}</p>
+        <p><b>From:</b> ${leave.startDate.toDateString()} <b>To:</b> ${leave.endDate.toDateString()}</p>
+        ${
+          leave.adminComment?.trim()
+            ? `<p><b>Admin Comment:</b> ${leave.adminComment}</p>`
+            : ""
+        }
+      `,
+    });
 
-    <p><b>Leave Type:</b> ${leave.leaveType}</p>
-    <p><b>From:</b> ${leave.startDate.toDateString()} <b>To:</b> ${leave.endDate.toDateString()}</p>
-
-    ${
-      leave.adminComment?.trim()
-        ? `<p><b>Admin Comment:</b> ${leave.adminComment}</p>`
-        : ""
-    }
-  `,
+    // ---- In-app notification to employee ----
+    await createNotification({
+      recipient: leave.employee._id,
+      recipientRole: "user",
+      sender: req.user._id,
+      type: "LEAVE_APPROVED",
+      message: `${leave.employee.firstName}, your ${leave.leaveType} leave has been approved. Status: Approved`,
+      relatedLeave: leave._id,
     });
 
     return res.status(200).json({
       success: true,
-      message: "Leave approve ",
+      message: "Leave approved successfully",
       data: leave,
     });
   } catch (error) {
     return res.status(500).json({
       success: false,
-      message: "Leave approve error",
+      message: "Error while approving leave",
       error: error.message,
     });
   }
@@ -340,19 +375,22 @@ export const rejectLeave = async (req, res) => {
   try {
     const { adminComment } = req.body;
 
-    const leave = await Leave.findById(req.params.id);
+    const leave = await Leave.findById(req.params.id).populate(
+      "employee",
+      "firstName lastName email",
+    );
 
     if (!leave) {
       return res.status(404).json({
         success: false,
-        message: "Leave record nahi mila",
+        message: "Leave record not found",
       });
     }
 
     if (leave.status !== "Pending") {
       return res.status(400).json({
         success: false,
-        message: "Yeh leave pehle hi process ho chuki hai",
+        message: "This leave has already been processed",
       });
     }
 
@@ -362,22 +400,32 @@ export const rejectLeave = async (req, res) => {
     leave.approvedOrRejectedDate = new Date();
 
     await leave.save();
-    const populatedLeave = await leave.populate(
-      "employee",
-      "firstName lastName email",
-    );
 
+    // ---- Email notification to employee ----
     await sendEmail({
-      to: populatedLeave.employee.email,
+      to: leave.employee.email,
       subject: "Your leave request has been rejected",
       html: `
         <h3>Leave Rejected ❌</h3>
-        <p>Hi ${populatedLeave.employee.firstName},</p>
+        <p>Hi ${leave.employee.firstName},</p>
         <p><b>Leave Type:</b> ${leave.leaveType}</p>
         <p><b>From:</b> ${leave.startDate.toDateString()} <b>To:</b> ${leave.endDate.toDateString()}</p>
         <p><b>Admin Comment:</b> ${leave.adminComment}</p>
       `,
     });
+
+    // ---- In-app notification to employee ----
+    await createNotification({
+      recipient: leave.employee._id,
+      recipientRole: "user",
+      sender: req.user._id,
+      type: "LEAVE_REJECTED",
+      message: `${leave.employee.firstName}, your ${leave.leaveType} leave has been rejected. Status: Rejected${
+        adminComment ? ` (Reason: ${adminComment})` : ""
+      }`,
+      relatedLeave: leave._id,
+    });
+
     return res.status(200).json({
       success: true,
       message: "Leave rejected",
@@ -386,14 +434,14 @@ export const rejectLeave = async (req, res) => {
   } catch (error) {
     return res.status(500).json({
       success: false,
-      message: "Leave reject karte waqt error aayi",
+      message: "Error while rejecting leave",
       error: error.message,
     });
   }
 };
 
 // ---------------------------------------------------
-// @desc    Cancel a leave (employee, sirf Pending state me)
+// @desc    Cancel a leave (employee, only while Pending)
 // @route   PATCH /api/leaves/:id/cancel
 // @access  Private (employee - owner)
 // ---------------------------------------------------
@@ -404,36 +452,51 @@ export const cancelLeave = async (req, res) => {
     if (!leave) {
       return res.status(404).json({
         success: false,
-        message: "Leave record nahi mila",
+        message: "Leave record not found",
       });
     }
 
     if (leave.employee.toString() !== req.user._id.toString()) {
       return res.status(403).json({
         success: false,
-        message: "Aap sirf apni leave cancel kar sakte hain",
+        message: "You can only cancel your own leave",
       });
     }
 
     if (leave.status !== "Pending") {
       return res.status(400).json({
         success: false,
-        message: "Sirf Pending leave hi cancel ki ja sakti hai",
+        message: "Only a Pending leave can be cancelled",
       });
     }
 
     leave.status = "Cancelled";
     await leave.save();
 
+    // ---- In-app notification to admins ----
+    const admins = await User.find({ role: "Admin" }).select("_id");
+    await Promise.all(
+      admins.map((admin) =>
+        createNotification({
+          recipient: admin._id,
+          recipientRole: "admin",
+          sender: req.user._id,
+          type: "LEAVE_CANCELLED",
+          message: `${req.user.firstName} ${req.user.lastName} has cancelled their ${leave.leaveType} leave. Status: Cancelled`,
+          relatedLeave: leave._id,
+        }),
+      ),
+    );
+
     return res.status(200).json({
       success: true,
-      message: "Leave cancel kar di gayi",
+      message: "Leave cancelled successfully",
       data: leave,
     });
   } catch (error) {
     return res.status(500).json({
       success: false,
-      message: "Leave cancel karte waqt error aayi",
+      message: "Error while cancelling leave",
       error: error.message,
     });
   }
@@ -451,18 +514,18 @@ export const deleteLeave = async (req, res) => {
     if (!leave) {
       return res.status(404).json({
         success: false,
-        message: "Leave record nahi mila",
+        message: "Leave record not found",
       });
     }
 
     return res.status(200).json({
       success: true,
-      message: "Leave record delete ho gaya",
+      message: "Leave record deleted successfully",
     });
   } catch (error) {
     return res.status(500).json({
       success: false,
-      message: "Leave delete karte waqt error aayi",
+      message: "Error while deleting leave",
       error: error.message,
     });
   }

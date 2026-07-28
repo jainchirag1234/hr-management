@@ -52,3 +52,6 @@ const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
   console.log(`Server Running on Port ${PORT}`);
 });
+
+// Badi Base64 image upload ke liye timeout badhao (2 minutes)
+server.timeout = 120000;

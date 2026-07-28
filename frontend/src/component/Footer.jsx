@@ -6,7 +6,7 @@ function Footer() {
       <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-sm text-gray-400">
         <span>
           &copy; {year}{" "}
-          <span className="font-semibold bg-gradient-to-r from-indigo-600 to-fuchsia-600 bg-clip-text text-transparent">
+          <span className="font-semibold bg-blue-700 bg-clip-text text-transparent">
             HR Portal
           </span>
           . All rights reserved.

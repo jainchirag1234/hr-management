@@ -322,3 +322,7 @@ export const markAllNotificationsRead = () => {
 export const deleteNotification = (id) => {
   return api.delete(`/notification/${id}`);
 };
+
+export const clearAllNotifications = () => {
+  return api.delete("/notification/clear-all");
+};

@@ -1,4 +1,6 @@
 import Holiday from "../models/holiday.js";
+import User from "../models/User.js";
+import { createNotification } from "./notification.controller.js";
 
 export const createHoliday = async (req, res) => {
   try {
@@ -20,6 +22,21 @@ export const createHoliday = async (req, res) => {
     }
 
     const holiday = await Holiday.create({ name, date, Description, type });
+
+    // Notify all active employees
+    const employees = await User.find({ role: "Employee", status: "Active" }).select("_id");
+    await Promise.all(
+      employees.map((emp) =>
+        createNotification({
+          recipient: emp._id,
+          recipientRole: "user",
+          sender: req.user ? req.user._id : null,
+          type: "HOLIDAY_CREATED",
+          message: `New Holiday Added: ${name} on ${new Date(date).toLocaleDateString()}`,
+          relatedHoliday: holiday._id,
+        })
+      )
+    );
 
     return res.status(201).json({
       success: true,

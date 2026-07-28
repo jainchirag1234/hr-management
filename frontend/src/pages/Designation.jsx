@@ -129,8 +129,7 @@ const Designation = () => {
     {
       label: "Total Designations",
       value: designations.length,
-      colorClass:
-        "bg-gradient-to-r from-indigo-600 to-fuchsia-600 bg-clip-text text-transparent",
+      colorClass: "bg-blue-700 bg-clip-text text-transparent",
     },
     {
       label: "Active",
@@ -184,7 +183,7 @@ const Designation = () => {
             </h2>
             <button
               onClick={openAddForm}
-              className="text-sm font-medium text-white px-4 py-2 rounded-lg bg-gradient-to-r from-indigo-600 to-fuchsia-600 hover:opacity-90 transition"
+              className="text-sm font-medium text-white px-4 py-2 rounded-lg bg-blue-700 hover:opacity-90 transition"
             >
               + Add Designation
             </button>
@@ -406,7 +405,7 @@ const Designation = () => {
                 <button
                   type="submit"
                   disabled={saving}
-                  className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-gradient-to-r from-indigo-600 to-fuchsia-600 hover:opacity-90 rounded-xl transition disabled:opacity-50"
+                  className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-blue-700 hover:opacity-90 rounded-xl transition disabled:opacity-50"
                 >
                   {saving
                     ? "Saving..."

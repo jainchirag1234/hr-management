@@ -7,6 +7,7 @@ import {
   getMyNotifications,
   markNotificationRead,
   markAllNotificationsRead,
+  clearAllNotifications,
 } from "../services/auth.service";
 
 function timeAgo(dateStr) {
@@ -27,6 +28,10 @@ function getNotifIcon(type) {
       return "❌";
     case "LEAVE_CANCELLED":
       return "🚫";
+    case "HOLIDAY_CREATED":
+      return "🏖️";
+    case "ANNOUNCEMENT_CREATED":
+      return "📢";
     default:
       return "🔔";
   }
@@ -108,8 +113,13 @@ function Navbar() {
     }
   };
 
-  const clearAll = () => {
-    setNotifications([]);
+  const clearAll = async () => {
+    try {
+      await clearAllNotifications();
+      setNotifications([]);
+    } catch (err) {
+      console.error("Failed to clear notifications:", err);
+    }
   };
 
   const handleLogout = () => {
@@ -125,8 +135,8 @@ function Navbar() {
     .trim();
 
   return (
-    <nav className="bg-gradient-to-r from-indigo-600 to-fuchsia-600 shadow-md w-full">
-      <div className="px-4 sm:px-6 py-3 flex items-center justify-between">
+    <nav className="bg-blue-700 shadow-md w-full">
+      <div className="px-4 sm:px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3 lg:pl-0 pl-10">
           <div>
             <h1 className="text-white font-semibold text-lg leading-tight">

@@ -291,7 +291,7 @@ const Leave = () => {
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
       {/* Header */}
-      <div className="relative bg-gradient-to-r from-indigo-600 via-indigo-500 to-purple-600 rounded-2xl p-6 shadow-lg overflow-hidden">
+      <div className="relative bg-blue-700 rounded-2xl p-6 shadow-lg overflow-hidden">
         <div
           className="absolute inset-0 opacity-10"
           style={{

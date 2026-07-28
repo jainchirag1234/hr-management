@@ -1,5 +1,6 @@
 import {
   LayoutDashboard,
+  IdCard,
   Building2,
   Briefcase,
   CalendarOff,
@@ -16,6 +17,7 @@ import { useNavigate } from "react-router-dom";
 const MENU_CONFIG = {
   admin: [
     { key: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { key: "employee", label: "Employee", icon: IdCard },
     { key: "department", label: "Department", icon: Building2 },
     { key: "designation", label: "Designation", icon: Briefcase },
     { key: "attendance", label: "Attendance", icon: Clock },

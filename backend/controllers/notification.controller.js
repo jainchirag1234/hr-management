@@ -13,6 +13,8 @@ export const createNotification = async ({
   type,
   message,
   relatedLeave,
+  relatedHoliday,
+  relatedAnnouncement,
 }) => {
   try {
     const notification = await Notification.create({
@@ -22,6 +24,8 @@ export const createNotification = async ({
       type,
       message,
       relatedLeave,
+      relatedHoliday,
+      relatedAnnouncement,
     });
     
     // Emit socket event for real-time update
@@ -143,6 +147,27 @@ export const markAllAsRead = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Failed to update notifications",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * @desc    Logged-in user ke saare notifications clear karo
+ * @route   DELETE /api/notification/clear-all
+ * @access  Private
+ */
+export const clearAllNotifications = async (req, res) => {
+  try {
+    await Notification.deleteMany({ recipient: req.user._id });
+    res.status(200).json({
+      success: true,
+      message: "All notifications cleared",
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to clear notifications",
       error: error.message,
     });
   }

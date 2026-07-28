@@ -182,7 +182,8 @@ function Announcement() {
   };
 
   return (
-    <div className="w-full">
+    <div className="min-h-screen w-full bg-gray-50 flex flex-col">
+      <main className="flex-1 px-4 sm:px-6 py-6 sm:py-8 max-w-6xl mx-auto w-full">
       {error && (
         <div className="mb-6 bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-lg flex items-center justify-between">
           <span>{error}</span>
@@ -288,7 +289,7 @@ function Announcement() {
           {isAdmin && (
             <button
               onClick={openAddForm}
-              className="text-sm font-medium text-white px-4 py-2.5 rounded-lg bg-gradient-to-r from-indigo-600 to-fuchsia-600 hover:opacity-90 transition shrink-0"
+              className="text-sm font-medium text-white px-4 py-2.5 rounded-lg bg-blue-700  hover:opacity-90 transition shrink-0"
             >
               + Add Announcement
             </button>
@@ -383,6 +384,7 @@ function Announcement() {
           </div>
         )}
       </div>
+      </main>
 
       {/* Add / Edit modal - admin only */}
       {isAdmin && showForm && (
@@ -487,7 +489,7 @@ function Announcement() {
                 <button
                   type="submit"
                   disabled={savingForm}
-                  className="flex-1 px-4 py-2.5 text-sm font-medium text-white rounded-lg bg-gradient-to-r from-indigo-600 to-fuchsia-600 hover:opacity-90 transition disabled:opacity-50"
+                  className="flex-1 px-4 py-2.5 text-sm font-medium text-white rounded-lg bg-blue-700 hover:opacity-90 transition disabled:opacity-50"
                 >
                   {savingForm
                     ? "Saving..."

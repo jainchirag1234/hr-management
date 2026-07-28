@@ -98,7 +98,15 @@ const UserSchema = new mongoose.Schema(
 
     emergencyContactNumber: {
       type: String,
-    }, // existing schema me ye fields add karo
+    },
+
+    resetPasswordToken: {
+      type: String,
+    },
+
+    resetPasswordExpires: {
+      type: Date,
+    },
   },
   {
     timestamps: true,

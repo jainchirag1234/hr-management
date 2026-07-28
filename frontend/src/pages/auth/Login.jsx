@@ -1,6 +1,6 @@
 import { useState, useContext } from "react";
 import { AuthContext } from "../../context/AuthContext";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { loginUser } from "../../services/auth.service"; // <-- apni API file ka path lagao
 import { Eye, EyeOff, ShieldCheck } from "lucide-react";
 
@@ -76,7 +76,15 @@ function Login() {
           </div>
 
           <div className="mb-4">
-            <label className="block mb-2">Password</label>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block">Password</label>
+              <Link
+                to="/forgot-password"
+                className="text-sm text-blue-600 hover:text-blue-800 hover:underline transition-colors"
+              >
+                Forgot Password?
+              </Link>
+            </div>
             <div className="relative">
               <input
                 type={showPassword ? "text" : "password"}

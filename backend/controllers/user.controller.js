@@ -2,6 +2,7 @@ import User from "../models/User.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
+import sendEmail from "../utils/sendEmail.js";
 
 // ======================================
 // CREATE User
@@ -66,6 +67,26 @@ export const createUser = async (req, res) => {
         message: "Invalid joining date",
       });
     }
+
+    // ✅ Date of birth validation - Must be at least 18 years old
+    if (dateOfBirth) {
+      const dobDate = new Date(dateOfBirth);
+      if (isNaN(dobDate.getTime())) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid date of birth",
+        });
+      }
+      const today = new Date();
+      const minDate = new Date(today.getFullYear() - 18, today.getMonth(), today.getDate());
+      if (dobDate > minDate) {
+        return res.status(400).json({
+          success: false,
+          message: "User must be at least 18 years old",
+        });
+      }
+    }
+
     // ✅ Password length validation
     if (password.length < 8) {
       return res.status(400).json({
@@ -100,7 +121,7 @@ export const createUser = async (req, res) => {
       designation,
       salary,
       employmentType,
-      role: role || "User",
+      role: role || "Employee",
       status: status || "Active",
       emergencyContactName,
       emergencyContactNumber,
@@ -341,7 +362,26 @@ export const updateUser = async (req, res) => {
     }
 
     if (profileImage !== undefined) updateData.profileImage = profileImage;
-    if (dateOfBirth !== undefined) updateData.dateOfBirth = dateOfBirth || null;
+    if (dateOfBirth !== undefined) {
+      if (dateOfBirth) {
+        const dobDate = new Date(dateOfBirth);
+        if (isNaN(dobDate.getTime())) {
+          return res.status(400).json({
+            success: false,
+            message: "Invalid date of birth",
+          });
+        }
+        const today = new Date();
+        const minDate = new Date(today.getFullYear() - 18, today.getMonth(), today.getDate());
+        if (dobDate > minDate) {
+          return res.status(400).json({
+            success: false,
+            message: "User must be at least 18 years old",
+          });
+        }
+      }
+      updateData.dateOfBirth = dateOfBirth || null;
+    }
     if (address !== undefined) updateData.address = address;
     if (joiningDate !== undefined) {
       if (joiningDate && isNaN(new Date(joiningDate).getTime())) {
@@ -487,3 +527,136 @@ export const updateUserStatus = async (req, res) => {
     });
   }
 };
+
+// ======================================
+// FORGOT PASSWORD
+// POST /api/user/forgot-password
+// ======================================
+export const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: "Email is required",
+      });
+    }
+
+    const user = await User.findOne({ email: email.toLowerCase() });
+
+    // Security: Even if user not found, return success (prevent email enumeration)
+    if (!user) {
+      return res.status(200).json({
+        success: true,
+        message: "If this email is registered, a reset link has been sent.",
+      });
+    }
+
+    // Generate a secure random token
+    const resetToken = crypto.randomBytes(32).toString("hex");
+    const hashedToken = crypto.createHash("sha256").update(resetToken).digest("hex");
+
+    // Save hashed token + expiry to DB (1 hour)
+    user.resetPasswordToken = hashedToken;
+    user.resetPasswordExpires = Date.now() + 60 * 60 * 1000;
+    await user.save({ validateBeforeSave: false });
+
+    // Build reset URL (frontend URL)
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+    const resetUrl = `${frontendUrl}/reset-password/${resetToken}`;
+
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9fafb; border-radius: 10px;">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h2 style="color: #1d4ed8; margin: 0;">🔐 HRMS Password Reset</h2>
+        </div>
+        <div style="background: white; padding: 30px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+          <p style="color: #374151; font-size: 16px;">Hi <strong>${user.firstName}</strong>,</p>
+          <p style="color: #6b7280;">We received a request to reset your HRMS account password. Click the button below to set a new password:</p>
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${resetUrl}" style="background-color: #1d4ed8; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-size: 16px; font-weight: bold; display: inline-block;">Reset Password</a>
+          </div>
+          <p style="color: #9ca3af; font-size: 13px;">This link will expire in <strong>1 hour</strong>. If you did not request a password reset, please ignore this email.</p>
+          <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;" />
+          <p style="color: #9ca3af; font-size: 12px; text-align: center;">HR Management System &bull; Do not reply to this email</p>
+        </div>
+      </div>
+    `;
+
+    await sendEmail({
+      to: user.email,
+      subject: "HRMS - Password Reset Request",
+      html,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "If this email is registered, a reset link has been sent.",
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+    });
+  }
+};
+
+// ======================================
+// RESET PASSWORD
+// POST /api/user/reset-password/:token
+// ======================================
+export const resetPassword = async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { password } = req.body;
+
+    if (!password) {
+      return res.status(400).json({
+        success: false,
+        message: "New password is required",
+      });
+    }
+
+    if (password.length < 8) {
+      return res.status(400).json({
+        success: false,
+        message: "Password must be at least 8 characters",
+      });
+    }
+
+    // Hash the incoming token to compare with DB
+    const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+
+    const user = await User.findOne({
+      resetPasswordToken: hashedToken,
+      resetPasswordExpires: { $gt: Date.now() },
+    });
+
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid or expired reset token. Please request a new one.",
+      });
+    }
+
+    // Update password and clear token fields
+    user.password = await bcrypt.hash(password, 10);
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpires = undefined;
+    await user.save({ validateBeforeSave: false });
+
+    return res.status(200).json({
+      success: true,
+      message: "Password reset successful! You can now login with your new password.",
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+    });
+  }
+};
+

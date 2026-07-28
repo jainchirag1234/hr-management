@@ -2,10 +2,13 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import { useContext } from "react";
 import { AuthContext } from "./context/AuthContext";
 import Login from "./pages/auth/Login";
+import ForgotPassword from "./pages/auth/ForgotPassword";
+import ResetPassword from "./pages/auth/ResetPassword";
 import Layout from "./component/Layout";
 import Dashboard from "./pages/Dashboard";
 import Department from "./pages/Department";
 import Designation from "./pages/Designation";
+import Employee from "./pages/Employee";
 import Attendance from "./pages/Attendance";
 import Leave from "./pages/Leave";
 import Holiday from "./pages/Holiday";
@@ -58,11 +61,31 @@ function App() {
         }
       />
       <Route
+        path="/forgot-password"
+        element={
+          <PublicRoute>
+            <ForgotPassword />
+          </PublicRoute>
+        }
+      />
+      <Route
+        path="/reset-password/:token"
+        element={<ResetPassword />}
+      />
+      <Route
         path="/dashboard"
         element={
           <ProtectedRoute>
             <Dashboard />
           </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/employee"
+        element={
+          <AdminRoute>
+            <Employee />
+          </AdminRoute>
         }
       />
       <Route

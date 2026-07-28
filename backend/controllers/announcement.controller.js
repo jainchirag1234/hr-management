@@ -1,4 +1,6 @@
 import Announcement from "../models/announcement.js";
+import User from "../models/User.js";
+import { createNotification } from "./notification.controller.js";
 
 // @desc    Create a new announcement
 // @route   POST /api/announcements
@@ -22,6 +24,21 @@ export const createAnnouncement = async (req, res) => {
       priority,
       status,
     });
+
+    // Notify all active employees
+    const employees = await User.find({ role: "Employee", status: "Active" }).select("_id");
+    await Promise.all(
+      employees.map((emp) =>
+        createNotification({
+          recipient: emp._id,
+          recipientRole: "user",
+          sender: req.user ? req.user._id : null, // fallback if req.user is undefined
+          type: "ANNOUNCEMENT_CREATED",
+          message: `New Announcement: ${title}`,
+          relatedAnnouncement: announcement._id,
+        })
+      )
+    );
 
     return res.status(201).json({
       success: true,

@@ -7,17 +7,15 @@ import {
   createUser,
   updateUser,
   deleteUser,
-  getDepartments,
 } from "../services/auth.service";
 
-function Dashboard() {
+function Employee() {
   const { user } = useContext(AuthContext);
 
   const role = (user?.role ?? "").toString().trim().toLowerCase();
   const isAdmin = role === "admin";
 
   const [employees, setEmployees] = useState([]);
-  const [departmentCount, setDepartmentCount] = useState(0);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -26,6 +24,7 @@ function Dashboard() {
   const [editingEmployee, setEditingEmployee] = useState(null);
   const [viewingEmployee, setViewingEmployee] = useState(null);
   const [savingForm, setSavingForm] = useState(false);
+  const [formError, setFormError] = useState("");
   const [deletingId, setDeletingId] = useState(null);
   const [togglingId, setTogglingId] = useState(null);
   // Delete confirmation modal state
@@ -42,16 +41,8 @@ function Dashboard() {
       setError("");
       try {
         if (isAdmin) {
-          const [res, deptRes] = await Promise.all([
-            getAllUsers(),
-            getDepartments(),
-          ]);
-          if (!ignore) {
-            setEmployees(res.data.data || []);
-            const depts = deptRes.data.data || deptRes.data.departments || deptRes.data || [];
-            const activeDepts = depts.filter((d) => d.status?.toLowerCase() === "active");
-            setDepartmentCount(activeDepts.length);
-          }
+          const res = await getAllUsers();
+          if (!ignore) setEmployees((res.data.data || []).slice().reverse());
         } else if (user?.id) {
           const res = await getUserById(user.id);
           if (!ignore) setProfile(res.data.data);
@@ -96,11 +87,12 @@ function Dashboard() {
   const closeForm = () => {
     setShowForm(false);
     setEditingEmployee(null);
+    setFormError("");
   };
 
   const handleAdminFormSubmit = async (data) => {
     setSavingForm(true);
-    setError("");
+    setFormError("");
     try {
       const id = data._id || data.id;
       if (id) {
@@ -110,11 +102,11 @@ function Dashboard() {
         );
       } else {
         const res = await createUser(data);
-        setEmployees((prev) => [...prev, res.data.data]);
+        setEmployees((prev) => [res.data.data, ...prev]);
       }
       closeForm();
     } catch (err) {
-      setError(err?.response?.data?.message || "Failed to save employee");
+      setFormError(err?.response?.data?.message || "Failed to save employee");
     } finally {
       setSavingForm(false);
     }
@@ -156,7 +148,7 @@ function Dashboard() {
   // ---- Employee (self) actions ----
   const handleSelfFormSubmit = async (data) => {
     setSavingForm(true);
-    setError("");
+    setFormError("");
     try {
       // Backend already strips role/status from this route,
       // so employee can only update their own allowed fields.
@@ -164,40 +156,11 @@ function Dashboard() {
       setProfile(res.data.data);
       setShowForm(false);
     } catch (err) {
-      setError(err?.response?.data?.message || "Failed to update profile");
+      setFormError(err?.response?.data?.message || "Failed to update profile");
     } finally {
       setSavingForm(false);
     }
   };
-
-  const adminStats = [
-    { label: "Total Employees", value: employees.length || "--" },
-    {
-      label: "Active",
-      value:
-        employees.filter((e) => e.status?.toLowerCase() === "active").length ||
-        "--",
-    },
-    {
-      label: "Inactive",
-      value:
-        employees.filter((e) => e.status?.toLowerCase() !== "active").length ||
-        "--",
-    },
-    {
-      label: "Departments",
-      value: departmentCount || "--",
-    },
-  ];
-
-  const employeeStats = [
-    { label: "Department", value: profile?.department ?? "--" },
-    { label: "Designation", value: profile?.designation ?? "--" },
-    { label: "Employment Type", value: profile?.employmentType ?? "--" },
-    { label: "Status", value: profile?.status ?? "--" },
-  ];
-
-  const stats = isAdmin ? adminStats : employeeStats;
 
   return (
     <div className="min-h-screen w-full bg-gray-50 flex flex-col">
@@ -214,30 +177,6 @@ function Dashboard() {
           </div>
         )}
 
-        {/* Stat cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
-          {stats.map((s) => (
-            <div
-              key={s.label}
-              className="bg-white rounded-xl shadow-sm border border-gray-100 p-5"
-            >
-              <p className="text-gray-500 text-sm">{s.label}</p>
-              <p
-                className="
-                text-3xl
-                font-bold
-                bg-blue-700
-                bg-clip-text
-                text-transparent
-                mt-1
-                "
-              >
-                {s.value}
-              </p>
-            </div>
-          ))}
-        </div>
-
         {loading ? (
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 px-6 py-10 text-center text-gray-400 text-sm">
             Loading...
@@ -245,9 +184,24 @@ function Dashboard() {
         ) : isAdmin ? (
           /* ============ ADMIN VIEW: all employee records ============ */
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-            <div className="px-4 sm:px-6 py-4 border-b border-gray-100">
-              <h2 className="text-lg font-semibold text-gray-800">Latest Employees</h2>
-              <p className="text-xs text-gray-400 mt-0.5">Most recently added · showing up to 5</p>
+            <div className="px-4 sm:px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-800">Employees</h2>
+              <button
+                onClick={openAddForm}
+                className="
+                text-sm
+                font-medium
+                text-white
+                px-4
+                py-2
+                rounded-lg
+                bg-blue-700
+                hover:opacity-90
+                transition
+                "
+              >
+                + Add Employee
+              </button>
             </div>
 
             {employees.length === 0 ? (
@@ -258,10 +212,7 @@ function Dashboard() {
               <>
                 {/* MOBILE: card list */}
                 <div className="sm:hidden divide-y divide-gray-100">
-                  {[...employees]
-                    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-                    .slice(0, 5)
-                    .map((emp) => (
+                  {employees.map((emp) => (
                     <div key={emp._id} className="p-4 flex flex-col gap-2">
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex items-center gap-3">
@@ -285,15 +236,36 @@ function Dashboard() {
                               {emp.designation || "--"} &middot;{" "}
                               {emp.department || "--"}
                             </p>
-                            <p className="text-xs text-gray-400 mt-0.5">{emp.email || "--"}</p>
-                            <p className="text-xs text-gray-400">{emp.gender || "--"}</p>
                           </div>
                         </div>
-                        <span
-                          className={`shrink-0 px-2.5 py-1 rounded-full text-xs font-medium ${emp.status?.toLowerCase() === "active" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}
+                        <button
+                          onClick={() => handleToggleStatus(emp)}
+                          disabled={togglingId === emp._id}
+                          className={`shrink-0 px-2.5 py-1 rounded-full text-xs font-medium transition cursor-pointer disabled:opacity-50 ${emp.status?.toLowerCase() === "active" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}
                         >
-                          {emp.status}
-                        </span>
+                          {togglingId === emp._id ? "..." : emp.status}
+                        </button>
+                      </div>
+                      <div className="flex gap-2 pt-1">
+                        <button
+                          onClick={() => openView(emp)}
+                          className="flex-1 text-center text-xs font-medium text-gray-600 border border-gray-200 rounded-lg py-1.5 hover:bg-gray-50 transition"
+                        >
+                          View
+                        </button>
+                        <button
+                          onClick={() => openEditForm(emp)}
+                          className="flex-1 text-center text-xs font-medium text-indigo-600 border border-indigo-200 rounded-lg py-1.5 hover:bg-indigo-50 transition"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => setDeleteConfirm({ emp })}
+                          disabled={deletingId === emp._id}
+                          className="flex-1 text-center text-xs font-medium text-red-500 border border-red-200 rounded-lg py-1.5 hover:bg-red-50 transition disabled:opacity-50"
+                        >
+                          {deletingId === emp._id ? "..." : "Delete"}
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -305,17 +277,16 @@ function Dashboard() {
                     <thead>
                       <tr className="bg-gray-50 text-left text-gray-500">
                         <th className="px-6 py-3 font-medium">Employee</th>
-                        <th className="px-6 py-3 font-medium">Email</th>
-                        <th className="px-6 py-3 font-medium">Gender</th>
+                        <th className="px-6 py-3 font-medium">Designation</th>
                         <th className="px-6 py-3 font-medium">Department</th>
                         <th className="px-6 py-3 font-medium">Status</th>
+                        <th className="px-6 py-3 font-medium text-right">
+                          Actions
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
-                      {[...employees]
-                        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-                        .slice(0, 5)
-                        .map((emp) => (
+                      {employees.map((emp) => (
                         <tr
                           key={emp._id}
                           className="border-t border-gray-100 hover:bg-gray-50 transition"
@@ -340,20 +311,45 @@ function Dashboard() {
                             </div>
                           </td>
                           <td className="px-6 py-3 text-gray-600">
-                            {emp.email || "--"}
-                          </td>
-                          <td className="px-6 py-3 text-gray-600">
-                            {emp.gender || "--"}
+                            {emp.designation || "--"}
                           </td>
                           <td className="px-6 py-3 text-gray-600">
                             {emp.department || "--"}
                           </td>
                           <td className="px-6 py-3">
-                            <span
-                              className={`px-2.5 py-1 rounded-full text-xs font-medium ${emp.status?.toLowerCase() === "active" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}
+                            <button
+                              onClick={() => handleToggleStatus(emp)}
+                              disabled={togglingId === emp._id}
+                              title="Click to toggle status"
+                              className={`px-2.5 py-1 rounded-full text-xs font-medium transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${emp.status?.toLowerCase() === "active" ? "bg-green-100 text-green-700 hover:bg-green-200" : "bg-red-100 text-red-700 hover:bg-red-200"}`}
                             >
-                              {emp.status}
-                            </span>
+                              {togglingId === emp._id
+                                ? "Updating..."
+                                : emp.status}
+                            </button>
+                          </td>
+                          <td className="px-6 py-3 text-right space-x-3">
+                            <button
+                              onClick={() => openView(emp)}
+                              className="text-gray-500 hover:text-gray-700 text-sm font-medium"
+                            >
+                              View
+                            </button>
+                            <button
+                              onClick={() => openEditForm(emp)}
+                              className="text-indigo-600 hover:text-indigo-800 text-sm font-medium"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => setDeleteConfirm({ emp })}
+                              disabled={deletingId === emp._id}
+                              className="text-red-500 hover:text-red-700 text-sm font-medium disabled:opacity-50"
+                            >
+                              {deletingId === emp._id
+                                ? "Deleting..."
+                                : "Delete"}
+                            </button>
                           </td>
                         </tr>
                       ))}
@@ -439,6 +435,7 @@ function Dashboard() {
             initialData={isAdmin ? editingEmployee : profile}
             mode={isAdmin ? "admin" : "self"}
             saving={savingForm}
+            serverError={formError}
             onSubmit={isAdmin ? handleAdminFormSubmit : handleSelfFormSubmit}
             onCancel={closeForm}
           />
@@ -644,4 +641,4 @@ function Dashboard() {
   );
 }
 
-export default Dashboard;
+export default Employee;

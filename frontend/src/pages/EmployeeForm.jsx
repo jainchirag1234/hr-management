@@ -80,12 +80,36 @@ const fileToBase64 = (file) =>
     reader.readAsDataURL(file);
   });
 
+// Departments/Designations list ko "latest first" order me sort karta hai.
+// Agar backend createdAt (ya created_at) bhejta hai toh usi se newest-first sort hota hai.
+// Warna assume karte hain ki backend array creation order (oldest -> newest) me bhejta hai,
+// toh simply reverse kar dete hain taaki latest wala top pe aa jaaye aur sabse purana last me rahe.
+const sortLatestFirst = (list) => {
+  if (!Array.isArray(list) || list.length === 0) return [];
+
+  const hasTimestamps = list.every(
+    (item) => item?.createdAt || item?.created_at,
+  );
+
+  if (hasTimestamps) {
+    return [...list].sort((a, b) => {
+      const dateA = new Date(a.createdAt ?? a.created_at).getTime();
+      const dateB = new Date(b.createdAt ?? b.created_at).getTime();
+      return dateB - dateA; // newest first
+    });
+  }
+
+  // Fallback: reverse assumed creation order
+  return [...list].reverse();
+};
+
 function EmployeeForm({
   initialData = null,
   onSubmit,
   onCancel,
   mode = "admin",
   saving = false,
+  serverError = "",
 }) {
   const [form, setForm] = useState({ ...emptyEmployee });
   const [errors, setErrors] = useState({});
@@ -104,15 +128,17 @@ function EmployeeForm({
           getDepartments(),
           getDesignations(),
         ]);
-        setDepartments(
-          deptRes.data?.data || deptRes.data?.departments || deptRes.data || [],
-        );
-        setDesignations(
+
+        const rawDepartments =
+          deptRes.data?.data || deptRes.data?.departments || deptRes.data || [];
+        const rawDesignations =
           desigRes.data?.data ||
-            desigRes.data?.designations ||
-            desigRes.data ||
-            [],
-        );
+          desigRes.data?.designations ||
+          desigRes.data ||
+          [];
+
+        setDepartments(sortLatestFirst(rawDepartments));
+        setDesignations(sortLatestFirst(rawDesignations));
       } catch (error) {
         console.error("Failed to fetch departments/designations", error);
       }
@@ -130,7 +156,11 @@ function EmployeeForm({
   }, [initialData]);
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
+    let { name, value } = e.target;
+
+    if (name === "firstName") {
+      value = value.replace(/\s/g, "");
+    }
 
     setForm((prev) => {
       const newForm = { ...prev, [name]: value };
@@ -186,27 +216,27 @@ function EmployeeForm({
     const next = {};
 
     // ---- Required fields (backend model ke hisaab se) ----
-    if (!form.firstName?.trim()) next.firstName = "First Name required hai";
-    if (!form.lastName?.trim()) next.lastName = "Last Name required hai";
+    if (!form.firstName?.trim()) next.firstName = "First Name required ";
+    if (!form.lastName?.trim()) next.lastName = "Last Name required ";
 
     if (!form.email?.trim()) {
-      next.email = "Email required hai";
+      next.email = "Email required ";
     } else if (!/^\S+@\S+\.\S+$/.test(form.email)) {
       next.email = "Valid email address";
     }
 
     if (!form.phoneNumber?.trim()) {
-      next.phoneNumber = "Phone Number required hai";
+      next.phoneNumber = "Phone Number required ";
     } else if (!/^[0-9+\-\s]{7,15}$/.test(form.phoneNumber)) {
       next.phoneNumber = "Valid phone number ";
     }
 
-    // Password sirf new employee create karte waqt required hai
+    // Password sirf new employee create karte waqt
     if (mode === "admin" && !isEdit && !form.password?.trim()) {
-      next.password = "Password required hai";
+      next.password = "Password required ";
     }
 
-    if (!form.joiningDate) next.joiningDate = "Joining Date required hai";
+    if (!form.joiningDate) next.joiningDate = "Joining Date required ";
 
     // ---- Format checks for optional fields ----
     if (
@@ -262,11 +292,6 @@ function EmployeeForm({
      disabled:opacity-60 disabled:bg-gray-100 disabled:text-gray-500 disabled:border-gray-200 disabled:cursor-not-allowed
      ${errors[name] ? "border-red-500" : "border-gray-300"}`;
 
-  // Avatar initials fallback
-  const initials =
-    `${form.firstName?.[0] ?? ""}${form.lastName?.[0] ?? ""}`.toUpperCase() ||
-    "?";
-
   // Selected department ke hisaab se filtered designations
   // (disabled logic aur options list dono ke liye use hoga)
   const filteredDesignations = designations.filter(
@@ -310,6 +335,27 @@ function EmployeeForm({
         {isEdit ? "Update employee details." : "Fill employee information."}
       </p>
 
+      {/* Server-side API Error Banner */}
+      {serverError && (
+        <div className="mb-4 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="h-4 w-4 mt-0.5 shrink-0 text-red-500"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
+            />
+          </svg>
+          <span>{serverError}</span>
+        </div>
+      )}
+
       {/*
         Chrome/Edge autofill ko poori tarah block karne ke liye ek "decoy" trick:
         ye hidden fake fields real password/email fields se pehle rakh do,
@@ -325,7 +371,7 @@ function EmployeeForm({
         <label className="block mb-1 font-medium">Profile Photo</label>
         <div className="flex flex-row items-center gap-3 p-3 bg-gray-50 rounded-xl border border-dashed border-gray-300">
           {/* Avatar / Preview */}
-          <div className="relative group flex-shrink-0">
+          <div className="relative flex-shrink-0">
             {imagePreview ? (
               <img
                 src={imagePreview}
@@ -333,39 +379,53 @@ function EmployeeForm({
                 className="w-12 h-12 rounded-full object-cover border-2 border-white shadow-sm"
               />
             ) : (
-              <div className="w-12 h-12 rounded-full flex items-center justify-center border-2 border-white shadow-sm bg-gradient-to-br from-indigo-500 to-fuchsia-500 text-white text-sm font-bold select-none">
-                {initials}
-              </div>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="w-12 h-12 rounded-full flex items-center justify-center border-2 border-white shadow-sm bg-gray-100 text-gray-500 hover:bg-gray-200 transition-colors cursor-pointer"
+                title="Upload photo"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                  />
+                </svg>
+              </button>
             )}
 
-            {/* Overlay camera icon on hover */}
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
-              title="Change photo"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-5 w-5 text-white"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
+            {/* Always visible Pencil Edit Badge ONLY when image exists */}
+            {imagePreview && (
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="absolute -bottom-1 -right-1 rounded-full bg-indigo-600 border-2 border-white p-1 text-white shadow-md hover:bg-indigo-700 transition-colors flex items-center justify-center cursor-pointer"
+                title="Change photo"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
-                />
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"
-                />
-              </svg>
-            </button>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-3 w-3"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                  />
+                </svg>
+              </button>
+            )}
           </div>
 
           {/* Buttons + hint, left aligned next to avatar */}
@@ -550,7 +610,11 @@ function EmployeeForm({
             value={form.dateOfBirth}
             onChange={handleChange}
             autoComplete="off"
-            max={new Date().toISOString().split("T")[0]}
+            max={
+              new Date(new Date().setFullYear(new Date().getFullYear() - 18))
+                .toISOString()
+                .split("T")[0]
+            }
             className={fieldClass("dateOfBirth")}
           />
         </div>

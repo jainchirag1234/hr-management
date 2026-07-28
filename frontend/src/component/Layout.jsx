@@ -53,12 +53,15 @@ export default function DashboardLayout({ role, children }) {
         </div>
 
         {/* Scrollable Page Content */}
-        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-50">
-          {children}
+        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-50 flex flex-col relative">
+          <div className="flex-1">
+            {children}
+          </div>
+          {/* Footer (Normal document flow, appears at the end of scrolling) */}
+          <div className="w-full mt-auto">
+            <Footer />
+          </div>
         </main>
-
-        {/* Footer */}
-        <Footer />
       </div>
     </div>
   );

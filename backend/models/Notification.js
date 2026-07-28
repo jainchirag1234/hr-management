@@ -32,6 +32,8 @@ const notificationSchema = new mongoose.Schema(
         "LEAVE_APPROVED", // admin -> user
         "LEAVE_REJECTED", // admin -> user
         "LEAVE_CANCELLED", // user -> admin
+        "HOLIDAY_CREATED", // admin -> all employees
+        "ANNOUNCEMENT_CREATED", // admin -> all employees
       ],
       required: true,
     },
@@ -41,6 +43,16 @@ const notificationSchema = new mongoose.Schema(
     relatedLeave: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Leave",
+    },
+
+    relatedHoliday: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Holiday",
+    },
+
+    relatedAnnouncement: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "announcement",
     },
 
     isRead: { type: Boolean, default: false },

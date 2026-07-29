@@ -183,7 +183,7 @@ const Designation = () => {
             </h2>
             <button
               onClick={openAddForm}
-              className="text-sm font-medium text-white px-4 py-2 rounded-lg bg-blue-700 hover:opacity-90 transition"
+              className="text-sm font-medium text-white px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition"
             >
               + Add Designation
             </button>
@@ -230,7 +230,7 @@ const Designation = () => {
                     <div className="flex gap-2 pt-1">
                       <button
                         onClick={() => openEditForm(designation)}
-                        className="flex-1 text-center text-xs font-medium text-indigo-600 border border-indigo-200 rounded-lg py-1.5 hover:bg-indigo-50 transition"
+                        className="flex-1 text-center text-xs font-medium text-cyan-600 border border-cyan-200 rounded-lg py-1.5 hover:bg-cyan-50 transition"
                       >
                         Edit
                       </button>
@@ -250,7 +250,7 @@ const Designation = () => {
               <div className="hidden sm:block overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="bg-gray-50 text-left text-gray-500">
+                    <tr className="bg-cyan-600 text-left text-white">
                       <th className="px-6 py-3 font-medium">Name</th>
                       <th className="px-6 py-3 font-medium">Department</th>
                       <th className="px-6 py-3 font-medium">Description</th>
@@ -290,7 +290,7 @@ const Designation = () => {
                         <td className="px-6 py-3 text-right space-x-3">
                           <button
                             onClick={() => openEditForm(designation)}
-                            className="text-indigo-600 hover:text-indigo-800 text-sm font-medium"
+                            className="text-cyan-600 hover:text-cyan-800 text-sm font-medium"
                           >
                             Edit
                           </button>
@@ -318,13 +318,13 @@ const Designation = () => {
       {showForm && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center px-4 z-50">
           <div className="bg-white rounded-xl shadow-lg w-full max-w-md p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-800">
+            <div className="flex items-center justify-between mb-5 bg-cyan-50 p-4 sm:px-6 sm:py-5 -mx-4 sm:-mx-6 -mt-4 sm:-mt-6 rounded-t-xl border-b border-cyan-100">
+              <h3 className="text-xl font-bold text-cyan-800">
                 {editingId ? "Edit Designation" : "Add Designation"}
               </h3>
               <button
                 onClick={closeForm}
-                className="text-gray-400 hover:text-gray-600"
+                className="text-cyan-400 hover:text-cyan-600 text-xl leading-none"
               >
                 ✕
               </button>
@@ -341,7 +341,7 @@ const Designation = () => {
                   value={formData.name}
                   onChange={handleChange}
                   required
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500"
                 />
               </div>
 
@@ -354,7 +354,7 @@ const Designation = () => {
                   value={formData.department}
                   onChange={handleChange}
                   required
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500"
                 >
                   <option value="">Select Department</option>
                   {departments.map((dept) => (
@@ -374,7 +374,7 @@ const Designation = () => {
                   value={formData.description}
                   onChange={handleChange}
                   rows={3}
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 resize-none"
                 />
               </div>
 
@@ -386,7 +386,7 @@ const Designation = () => {
                   name="status"
                   value={formData.status}
                   onChange={handleChange}
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500"
                 >
                   <option value="active">active</option>
                   <option value="inactive">inactive</option>
@@ -405,7 +405,7 @@ const Designation = () => {
                 <button
                   type="submit"
                   disabled={saving}
-                  className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-blue-700 hover:opacity-90 rounded-xl transition disabled:opacity-50"
+                  className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-cyan-600 hover:bg-cyan-700 rounded-xl transition disabled:opacity-50"
                 >
                   {saving
                     ? "Saving..."
@@ -444,10 +444,11 @@ const Designation = () => {
               Delete Designation?
             </h3>
             <p className="text-sm text-gray-500 text-center mt-2">
-              {" "}
+              Are you sure you want to delete{" "}
               <span className="font-semibold text-gray-700">
                 {deleteConfirm.name}
-              </span>{" "}
+              </span>
+              ?
             </p>
 
             <div className="flex gap-3 mt-6">

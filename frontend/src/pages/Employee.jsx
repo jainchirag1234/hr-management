@@ -255,7 +255,7 @@ function Employee() {
                         </button>
                         <button
                           onClick={() => openEditForm(emp)}
-                          className="flex-1 text-center text-xs font-medium text-indigo-600 border border-indigo-200 rounded-lg py-1.5 hover:bg-indigo-50 transition"
+                          className="flex-1 text-center text-xs font-medium text-blue-700 border border-blue-200 rounded-lg py-1.5 hover:bg-blue-50 transition"
                         >
                           Edit
                         </button>
@@ -275,7 +275,7 @@ function Employee() {
                 <div className="hidden sm:block overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="bg-gray-50 text-left text-gray-500">
+                      <tr className="bg-blue-700 text-left text-white">
                         <th className="px-6 py-3 font-medium">Employee</th>
                         <th className="px-6 py-3 font-medium">Designation</th>
                         <th className="px-6 py-3 font-medium">Department</th>
@@ -337,7 +337,7 @@ function Employee() {
                             </button>
                             <button
                               onClick={() => openEditForm(emp)}
-                              className="text-indigo-600 hover:text-indigo-800 text-sm font-medium"
+                              className="text-blue-700 hover:text-blue-900 text-sm font-medium"
                             >
                               Edit
                             </button>
@@ -585,10 +585,10 @@ function Employee() {
               Delete Employee?
             </h3>
             <p className="text-sm text-gray-500 text-center mt-2">
-              {" "}
+              Are you sure you want to delete{" "}
               <span className="font-semibold text-gray-700">
                 {deleteConfirm.emp.firstName} {deleteConfirm.emp.lastName}
-              </span>{" "}
+              </span>?
             </p>
 
             {/* Buttons */}

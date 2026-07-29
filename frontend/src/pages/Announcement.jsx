@@ -289,7 +289,7 @@ function Announcement() {
           {isAdmin && (
             <button
               onClick={openAddForm}
-              className="text-sm font-medium text-white px-4 py-2.5 rounded-lg bg-blue-700  hover:opacity-90 transition shrink-0"
+              className="text-sm font-medium text-white px-4 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 transition shrink-0"
             >
               + Add Announcement
             </button>
@@ -308,7 +308,7 @@ function Announcement() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-gray-500">
+                <tr className="bg-indigo-600 text-left text-white">
                   <th className="px-6 py-3 font-medium">Title</th>
                   <th className="px-6 py-3 font-medium">Description</th>
                   <th className="px-6 py-3 font-medium">Expiry Date</th>
@@ -390,13 +390,13 @@ function Announcement() {
       {isAdmin && showForm && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center px-4 z-50">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
-            <div className="flex items-center justify-between mb-5">
-              <h3 className="text-xl font-bold text-gray-800">
+            <div className="flex items-center justify-between mb-5 bg-indigo-50 p-6 -mx-6 -mt-6 rounded-t-2xl border-b border-indigo-100">
+              <h3 className="text-xl font-bold text-indigo-800">
                 {editingId ? "Edit Announcement" : "Add Announcement"}
               </h3>
               <button
                 onClick={resetForm}
-                className="text-gray-400 hover:text-gray-600 text-xl leading-none"
+                className="text-indigo-400 hover:text-indigo-600 text-xl leading-none"
               >
                 ✕
               </button>
@@ -489,7 +489,7 @@ function Announcement() {
                 <button
                   type="submit"
                   disabled={savingForm}
-                  className="flex-1 px-4 py-2.5 text-sm font-medium text-white rounded-lg bg-blue-700 hover:opacity-90 transition disabled:opacity-50"
+                  className="flex-1 px-4 py-2.5 text-sm font-medium text-white rounded-lg bg-indigo-600 hover:bg-indigo-700 transition disabled:opacity-50"
                 >
                   {savingForm
                     ? "Saving..."
@@ -528,10 +528,10 @@ function Announcement() {
               Delete Announcement?
             </h3>
             <p className="text-sm text-gray-500 text-center mt-2">
-              {" "}
+              Are you sure you want to delete{" "}
               <span className="font-semibold text-gray-700">
                 {deleteConfirm.announcement.title}
-              </span>{" "}
+              </span>?
             </p>
 
             <div className="flex gap-3 mt-6">

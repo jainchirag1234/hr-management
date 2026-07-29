@@ -1,6 +1,7 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useEffect, useMemo, useState, useContext } from "react";
+import { createPortal } from "react-dom";
 import { AuthContext } from "../context/AuthContext"; // apna actual path
 import {
   checkInAttendance,
@@ -158,6 +159,33 @@ const STATUS_OPTIONS = [
   "Work From Home",
 ];
 
+const Pagination = ({ totalItems, itemsPerPage, currentPage, setCurrentPage }) => {
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  if (totalPages <= 1) return null;
+
+  return (
+    <div className="flex items-center justify-center gap-2">
+      <button
+        onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+        disabled={currentPage === 1}
+        className="px-3 py-1 text-sm font-medium rounded-md bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        Previous
+      </button>
+      <span className="text-sm text-gray-600 font-medium">
+        Page {currentPage} of {totalPages}
+      </span>
+      <button
+        onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+        disabled={currentPage === totalPages}
+        className="px-3 py-1 text-sm font-medium rounded-md bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        Next
+      </button>
+    </div>
+  );
+};
+
 const AttendancePage = () => {
   const { user } = useContext(AuthContext);
   const role = (user?.role ?? "").toString().trim().toLowerCase();
@@ -169,6 +197,9 @@ const AttendancePage = () => {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+
+  // ---------- Session Ended overlay (shown after Check Out) ----------
+  const [showSessionEnded, setShowSessionEnded] = useState(false);
 
   // ---------- Admin: create/edit form state ----------
   const emptyForm = {
@@ -200,6 +231,8 @@ const AttendancePage = () => {
     toDate: "",
   };
   const [filters, setFilters] = useState(emptyFilters);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 6;
 
   const todayRecord = myRecords.find(
     (r) => getLocalYYYYMMDD(r.date) === getTodayDateString(),
@@ -211,7 +244,13 @@ const AttendancePage = () => {
       const empId = user?._id || user?.id;
       if (!empId) return;
       const res = await getMyAttendance(empId);
-      setMyRecords(res.data.attendance);
+      const data = res.data.attendance || [];
+      data.sort((a, b) => {
+        if (a.createdAt && b.createdAt) return new Date(b.createdAt) - new Date(a.createdAt);
+        if (a._id && b._id) return b._id.toString().localeCompare(a._id.toString());
+        return new Date(b.date || 0) - new Date(a.date || 0);
+      });
+      setMyRecords(data);
     } catch (err) {
       console.error(err);
     }
@@ -223,7 +262,16 @@ const AttendancePage = () => {
   const fetchAllAttendance = async () => {
     try {
       const res = await getAllAttendance();
-      setAllRecords(res.data.attendance);
+      const data = res.data.attendance || [];
+      // Default sort: alphabetical by employee name (A-Z)
+      data.sort((a, b) => {
+        const nameA = getEmployeeDisplayName(a.employee, []).toLowerCase();
+        const nameB = getEmployeeDisplayName(b.employee, []).toLowerCase();
+        if (nameA < nameB) return -1;
+        if (nameA > nameB) return 1;
+        return getLocalYYYYMMDD(b.date).localeCompare(getLocalYYYYMMDD(a.date));
+      });
+      setAllRecords(data);
     } catch (err) {
       console.error(err);
     }
@@ -281,8 +329,10 @@ const AttendancePage = () => {
     setError("");
     try {
       const empId = user?._id || user?.id;
-      const res = await checkOutAttendance({ employee: empId });
-      setMessage(res.data.message);
+      await checkOutAttendance({ employee: empId });
+      // Show overlay immediately — don't wait for re-fetch
+      setShowSessionEnded(true);
+      // Refresh records in background (updates todayRecord for the summary)
       fetchMyAttendance();
     } catch (err) {
       setError(err.response?.data?.message || "Check-out failed");
@@ -491,6 +541,7 @@ const AttendancePage = () => {
 
       return updated;
     });
+    setCurrentPage(1);
   };
 
   // Client-side filtering.
@@ -523,6 +574,7 @@ const AttendancePage = () => {
 
   const openEmployeeDetail = (empId) => {
     setSelectedEmployeeId(empId);
+    setCurrentPage(1);
   };
 
   const closeEmployeeDetail = () => {
@@ -560,11 +612,12 @@ const AttendancePage = () => {
     });
 
     const summaries = Array.from(map.values());
-    summaries.sort((a, b) =>
-      getEmployeeDisplayName(a.empObj || a.empId, employees).localeCompare(
-        getEmployeeDisplayName(b.empObj || b.empId, employees),
-      ),
-    );
+    // Sort alphabetically by employee name A-Z
+    summaries.sort((a, b) => {
+      const nameA = getEmployeeDisplayName(a.empObj, employees).toLowerCase();
+      const nameB = getEmployeeDisplayName(b.empObj, employees).toLowerCase();
+      return nameA.localeCompare(nameB);
+    });
     return summaries;
   }, [visibleAdminRecords, employees]);
 
@@ -679,7 +732,7 @@ const AttendancePage = () => {
     <div className="overflow-x-auto">
       <table className="w-full text-sm text-left">
         <thead>
-          <tr className="bg-gray-50/80 text-gray-500 font-medium border-b border-gray-100">
+          <tr className="bg-indigo-600 text-white font-medium border-b border-indigo-700">
             <th className="py-4 px-6 text-xs uppercase tracking-wider font-semibold">
               Date
             </th>
@@ -761,7 +814,7 @@ const AttendancePage = () => {
                     <div className="flex justify-end gap-2">
                       <button
                         onClick={() => openEditForm(r._id)}
-                        className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                        className="p-1.5 text-sky-600 hover:text-sky-700 hover:bg-sky-50 rounded-lg transition-colors"
                         title="Edit Record"
                       >
                         <svg
@@ -847,7 +900,7 @@ const AttendancePage = () => {
           {isAdmin && (
             <button
               onClick={openCreateForm}
-              className="inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 shadow-sm hover:shadow-md active:scale-[0.98]"
+              className="inline-flex items-center justify-center gap-2 bg-sky-700 hover:bg-sky-800 text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 shadow-sm hover:shadow-md active:scale-[0.98]"
             >
               <svg
                 className="w-5 h-5"
@@ -917,15 +970,28 @@ const AttendancePage = () => {
                 </div>
 
                 {todayRecord && (
-                  <div className="flex items-center gap-2 bg-emerald-50 px-4 py-2 rounded-full border border-emerald-100">
-                    <span className="relative flex h-2.5 w-2.5">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-                    </span>
-                    <span className="text-sm font-medium text-emerald-700">
-                      Active Session
-                    </span>
-                  </div>
+                  todayRecord.checkOutTime ? (
+                    // Checked out → Session Ended badge
+                    <div className="flex items-center gap-2 bg-rose-50 px-4 py-2 rounded-full border border-rose-100">
+                      <span className="relative flex h-2.5 w-2.5">
+                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500"></span>
+                      </span>
+                      <span className="text-sm font-medium text-rose-600">
+                        Session Ended
+                      </span>
+                    </div>
+                  ) : (
+                    // Checked in, not yet out → Active Session badge
+                    <div className="flex items-center gap-2 bg-emerald-50 px-4 py-2 rounded-full border border-emerald-100">
+                      <span className="relative flex h-2.5 w-2.5">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                      </span>
+                      <span className="text-sm font-medium text-emerald-700">
+                        Active Session
+                      </span>
+                    </div>
+                  )
                 )}
               </div>
 
@@ -1106,7 +1172,7 @@ const AttendancePage = () => {
                 </div>
               ) : (
                 <button
-                  onClick={() => setShowMyHistory(true)}
+                  onClick={() => { setShowMyHistory(true); setCurrentPage(1); }}
                   className="w-full text-left bg-gradient-to-b from-gray-50 to-gray-50/60 hover:from-gray-100 hover:to-gray-100/60 rounded-2xl border border-gray-100 p-5 sm:p-7 transition-colors group cursor-pointer"
                   title="Click to view full history"
                 >
@@ -1239,8 +1305,18 @@ const AttendancePage = () => {
                   </div>
                   {/* Modal Body — scrollable table */}
                   <div className="overflow-y-auto">
-                    {renderHistoryTable(myRecords)}
+                    {renderHistoryTable(myRecords.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage))}
                   </div>
+                  {myRecords.length > itemsPerPage && (
+                    <div className="p-4 bg-gray-50/50 border-t border-gray-100 shrink-0">
+                      <Pagination
+                        totalItems={myRecords.length}
+                        itemsPerPage={itemsPerPage}
+                        currentPage={currentPage}
+                        setCurrentPage={setCurrentPage}
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -1343,13 +1419,13 @@ const AttendancePage = () => {
         {isAdmin && showForm && (
           <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
             <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
-              <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50 shrink-0">
-                <h3 className="text-lg font-bold text-gray-900">
+              <div className="px-6 py-4 border-b border-sky-200 flex justify-between items-center bg-sky-100 shrink-0">
+                <h3 className="text-lg font-bold text-sky-900">
                   {isEditMode ? "Edit Attendance Record" : "Add New Record"}
                 </h3>
                 <button
                   onClick={closeForm}
-                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                  className="text-sky-500 hover:text-sky-700 transition-colors"
                 >
                   <svg
                     className="w-5 h-5"
@@ -1380,7 +1456,7 @@ const AttendancePage = () => {
                       name="employee"
                       value={form.employee}
                       onChange={handleFormChange}
-                      className="w-full border-gray-200 border rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none bg-white"
+                      className="w-full border-gray-200 border rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 outline-none bg-white"
                       required
                     >
                       <option value="">-- Select Employee --</option>
@@ -1420,7 +1496,7 @@ const AttendancePage = () => {
                       name="date"
                       value={form.date}
                       onChange={handleFormChange}
-                      className="w-full border-gray-200 border rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none bg-white"
+                      className="w-full border-gray-200 border rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 outline-none bg-white"
                       required
                     />
                   </div>
@@ -1436,7 +1512,7 @@ const AttendancePage = () => {
                       name="checkInTime"
                       value={form.checkInTime}
                       onChange={handleFormChange}
-                      className="w-full border-gray-200 border rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none bg-white"
+                      className="w-full border-gray-200 border rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 outline-none bg-white"
                     />
                     {isCheckInLate(form.checkInTime) && (
                       <p className="text-xs text-amber-600 font-medium">
@@ -1453,7 +1529,7 @@ const AttendancePage = () => {
                       name="checkOutTime"
                       value={form.checkOutTime}
                       onChange={handleFormChange}
-                      className="w-full border-gray-200 border rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none bg-white"
+                      className="w-full border-gray-200 border rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 outline-none bg-white"
                     />
                   </div>
                 </div>
@@ -1466,7 +1542,7 @@ const AttendancePage = () => {
                     name="attendanceStatus"
                     value={form.attendanceStatus}
                     onChange={handleFormChange}
-                    className="w-full border-gray-200 border rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none bg-white"
+                    className="w-full border-gray-200 border rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 outline-none bg-white"
                   >
                     {STATUS_OPTIONS.map((s) => (
                       <option key={s} value={s}>
@@ -1484,7 +1560,7 @@ const AttendancePage = () => {
                     name="notes"
                     value={form.notes}
                     onChange={handleFormChange}
-                    className="w-full border-gray-200 border rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none bg-white resize-none"
+                    className="w-full border-gray-200 border rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 outline-none bg-white resize-none"
                     rows={3}
                     placeholder="Add any relevant notes here..."
                   />
@@ -1501,7 +1577,7 @@ const AttendancePage = () => {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="px-6 py-2.5 rounded-xl font-semibold text-sm bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition-colors disabled:opacity-50 flex items-center justify-center min-w-[100px]"
+                    className="px-6 py-2.5 rounded-xl font-semibold text-sm bg-sky-700 hover:bg-sky-800 text-white shadow-sm transition-colors disabled:opacity-50 flex items-center justify-center min-w-[100px]"
                   >
                     {loading ? (
                       <svg
@@ -1643,7 +1719,7 @@ const AttendancePage = () => {
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 p-6">
-                {employeeSummaries.map((s) => {
+                {employeeSummaries.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((s) => {
                   const attendanceRate =
                     s.total > 0 ? Math.round((s.present / s.total) * 100) : 0;
                   return (
@@ -1739,6 +1815,16 @@ const AttendancePage = () => {
                     </button>
                   );
                 })}
+              </div>
+            )}
+            {employeeSummaries.length > itemsPerPage && (
+              <div className="p-4 bg-gray-50/50 border-t border-gray-100">
+                <Pagination
+                  totalItems={employeeSummaries.length}
+                  itemsPerPage={itemsPerPage}
+                  currentPage={currentPage}
+                  setCurrentPage={setCurrentPage}
+                />
               </div>
             )}
           </div>
@@ -1844,14 +1930,116 @@ const AttendancePage = () => {
               </div>
 
               <div className="overflow-y-auto">
-                {renderHistoryTable(selectedEmployeeRecords, {
+                {renderHistoryTable(selectedEmployeeRecords.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage), {
                   showActions: true,
                 })}
               </div>
+              {selectedEmployeeRecords.length > itemsPerPage && (
+                <div className="p-4 bg-gray-50/50 border-t border-gray-100 shrink-0">
+                  <Pagination
+                    totalItems={selectedEmployeeRecords.length}
+                    itemsPerPage={itemsPerPage}
+                    currentPage={currentPage}
+                    setCurrentPage={setCurrentPage}
+                  />
+                </div>
+              )}
             </div>
           </div>
         )}
       </div>
+
+      {/* ================= SESSION ENDED OVERLAY ================= */}
+      {/* Shown after employee successfully checks out for the day. */}
+      {showSessionEnded && createPortal(
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 9999,
+            backgroundColor: "rgba(17,24,39,0.85)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "1rem",
+          }}
+        >
+          <div
+            className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-8 flex flex-col items-center text-center"
+            style={{ animation: "fadeScaleIn 0.35s cubic-bezier(0.34,1.56,0.64,1) both" }}
+          >
+            {/* Icon */}
+            <div className="w-20 h-20 rounded-full bg-rose-100 flex items-center justify-center mb-5">
+              <svg
+                className="w-10 h-10 text-rose-500"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="1.8"
+                  d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"
+                />
+              </svg>
+            </div>
+
+            {/* Title */}
+            <h2 className="text-2xl font-extrabold text-gray-900 mb-2 tracking-tight">
+              Session Ended
+            </h2>
+
+            {/* Sub-text */}
+            <p className="text-gray-500 text-sm leading-relaxed mb-1">
+              You have successfully checked out for today.
+            </p>
+            <p className="text-rose-500 text-sm font-semibold mb-6">
+              Your active session has been rejected for further use today.
+            </p>
+
+            {/* Today's summary */}
+            {todayRecord && (
+              <div className="w-full bg-gray-50 rounded-2xl border border-gray-100 p-4 mb-6 grid grid-cols-3 gap-3 text-center">
+                <div>
+                  <p className="text-xs text-gray-400 font-medium uppercase tracking-wider mb-1">Check In</p>
+                  <p className="text-sm font-bold text-gray-800">
+                    {formatTimeDisplay(todayRecord.checkInTime)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-400 font-medium uppercase tracking-wider mb-1">Check Out</p>
+                  <p className="text-sm font-bold text-rose-600">
+                    {formatTimeDisplay(todayRecord.checkOutTime)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-400 font-medium uppercase tracking-wider mb-1">Hours</p>
+                  <p className="text-sm font-bold text-emerald-600">
+                    {formatWorkingHours(todayRecord.workingHours)}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Dismiss button */}
+            <button
+              onClick={() => setShowSessionEnded(false)}
+              className="w-full py-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-semibold text-sm transition-all duration-200 shadow-md hover:shadow-lg active:scale-[0.98]"
+            >
+              Dismiss
+            </button>
+          </div>
+
+          <style>{`
+            @keyframes fadeScaleIn {
+              from { opacity: 0; transform: scale(0.85); }
+              to   { opacity: 1; transform: scale(1); }
+            }
+          `}</style>
+        </div>,
+        document.body
+      )}
     </div>
   );
 };

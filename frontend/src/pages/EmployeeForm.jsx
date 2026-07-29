@@ -288,7 +288,7 @@ function EmployeeForm({
 
   const fieldClass = (name) =>
     `w-full rounded-lg border px-3 py-2 text-sm outline-none transition
-     focus:ring-2 focus:ring-indigo-400
+     focus:ring-2 focus:ring-blue-400 focus:border-blue-400
      disabled:opacity-60 disabled:bg-gray-100 disabled:text-gray-500 disabled:border-gray-200 disabled:cursor-not-allowed
      ${errors[name] ? "border-red-500" : "border-gray-300"}`;
 
@@ -306,29 +306,16 @@ function EmployeeForm({
       autoComplete="off"
       className="bg-white rounded-xl shadow-md border p-4 sm:p-6 w-full max-w-2xl mx-auto max-h-[90vh] overflow-y-auto"
     >
-      <div className="flex justify-between items-center mb-2">
-        <h2 className="text-2xl font-bold">
+      <div className="flex items-center justify-between mb-5 bg-blue-100 p-4 sm:px-6 sm:py-5 -mx-4 sm:-mx-6 -mt-4 sm:-mt-6 rounded-t-xl border-b border-blue-200">
+        <h3 className="text-xl font-bold text-blue-900">
           {isEdit ? "Edit Employee" : "Add Employee"}
-        </h2>
+        </h3>
         <button
           type="button"
           onClick={onCancel}
-          className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+          className="text-blue-500 hover:text-blue-700 text-xl leading-none"
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-6 w-6"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M6 18L18 6M6 6l12 12"
-            />
-          </svg>
+          ✕
         </button>
       </div>
       <p className="text-gray-500 mb-5">
@@ -815,7 +802,7 @@ function EmployeeForm({
         <button
           type="submit"
           disabled={saving}
-          className="px-5 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+          className="px-5 py-2 bg-blue-700 text-white rounded-lg hover:bg-blue-800 disabled:opacity-50"
         >
           {saving ? "Saving..." : isEdit ? "Update Changes" : "Add Employee"}
         </button>

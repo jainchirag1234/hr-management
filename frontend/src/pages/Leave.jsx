@@ -20,6 +20,49 @@ const VALID_LEAVE_TYPES = [
   "Other",
 ];
 
+const getEmployeeDisplayName = (empObjOrId, employeesList = []) => {
+  let empObj = empObjOrId && typeof empObjOrId === "object" ? empObjOrId : null;
+  if (!empObj) {
+    const id = empObjOrId;
+    empObj = employeesList.find((e) => e._id === id) || null;
+  }
+  if (!empObj) return "-";
+  const fullName = `${empObj.firstName || ""} ${empObj.lastName || ""}`.trim();
+  return empObj.name || fullName || empObj.email || "-";
+};
+
+const Pagination = ({
+  totalItems,
+  itemsPerPage,
+  currentPage,
+  setCurrentPage,
+}) => {
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  if (totalPages <= 1) return null;
+
+  return (
+    <div className="flex items-center justify-center gap-2">
+      <button
+        onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+        disabled={currentPage === 1}
+        className="px-3 py-1 text-sm font-medium rounded-md bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        Previous
+      </button>
+      <span className="text-sm text-gray-600 font-medium">
+        Page {currentPage} of {totalPages}
+      </span>
+      <button
+        onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+        disabled={currentPage === totalPages}
+        className="px-3 py-1 text-sm font-medium rounded-md bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        Next
+      </button>
+    </div>
+  );
+};
+
 const Leave = () => {
   const { user, socket } = useContext(AuthContext); // <-- socket bhi liya
   const role = (user?.role ?? "").toString().trim().toLowerCase();
@@ -55,18 +98,38 @@ const Leave = () => {
     employee: "",
     leaveType: "",
   });
+  const [currentPage, setCurrentPage] = useState(1);
+  const [detailPage, setDetailPage] = useState(1);
+  const itemsPerPage = 6;
 
-  // Fetch Data
+  const getEmpName = (empObjOrId) => {
+    const empObj = empObjOrId && typeof empObjOrId === "object" ? empObjOrId : null;
+    if (!empObj) return "";
+    return (empObj.name || `${empObj.firstName || ""} ${empObj.lastName || ""}`.trim() || empObj.email || "").toLowerCase();
+  };
+
   const fetchLeaves = async () => {
     setLoading(true);
     try {
+      let data = [];
       if (isAdmin) {
         const res = await getAllLeaves();
-        setLeaves(res.data.data || []);
+        data = res.data.data || [];
       } else {
         const res = await getMyLeaves();
-        setLeaves(res.data.data || []);
+        data = res.data.data || [];
       }
+
+      // Default sort: alphabetical by employee name (A-Z)
+      data.sort((a, b) => {
+        const nameA = getEmpName(a.employee);
+        const nameB = getEmpName(b.employee);
+        if (nameA < nameB) return -1;
+        if (nameA > nameB) return 1;
+        return new Date(b.startDate || 0) - new Date(a.startDate || 0);
+      });
+
+      setLeaves(data);
     } catch (err) {
       console.error(err);
       setMessage({ type: "error", text: "Failed to fetch leaves." });
@@ -225,14 +288,16 @@ const Leave = () => {
     }
   };
 
-  // Filter Logic (Admin)
+  // Filter Logic
   const filteredLeaves = useMemo(() => {
-    if (!isAdmin) return leaves;
     return leaves.filter((l) => {
       if (filters.status && l.status !== filters.status) return false;
-      if (filters.employee && l.employee?._id !== filters.employee)
-        return false;
-      if (filters.leaveType && l.leaveType !== filters.leaveType) return false;
+      if (isAdmin) {
+        if (filters.employee && l.employee?._id !== filters.employee)
+          return false;
+        if (filters.leaveType && l.leaveType !== filters.leaveType)
+          return false;
+      }
       return true;
     });
   }, [leaves, filters, isAdmin]);
@@ -279,14 +344,260 @@ const Leave = () => {
 
   // Dashboard Stats
   const stats = useMemo(() => {
-    const list = isAdmin ? filteredLeaves : leaves;
+    const list = leaves;
     return {
       total: list.length,
       approved: list.filter((l) => l.status === "Approved").length,
       pending: list.filter((l) => l.status === "Pending").length,
       rejected: list.filter((l) => l.status === "Rejected").length,
     };
-  }, [isAdmin ? filteredLeaves : leaves]);
+  }, [leaves]);
+
+  // ================= ADMIN: EMPLOYEE SELECTION =================
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState(null);
+
+  const openEmployeeDetail = (empId) => { setSelectedEmployeeId(empId); setDetailPage(1); };
+  const closeEmployeeDetail = () => setSelectedEmployeeId(null);
+
+  const employeeSummaries = useMemo(() => {
+    if (!isAdmin) return [];
+    const map = new Map();
+
+    filteredLeaves.forEach((l) => {
+      const empId = l.employee?._id || l.employee || "unknown";
+      if (!map.has(empId)) {
+        map.set(empId, {
+          empId,
+          empObj: l.employee,
+          total: 0,
+          approved: 0,
+          pending: 0,
+          rejected: 0,
+          cancelled: 0,
+        });
+      }
+      const entry = map.get(empId);
+      entry.total += 1;
+      if (l.status === "Approved") entry.approved += 1;
+      if (l.status === "Pending") entry.pending += 1;
+      if (l.status === "Rejected") entry.rejected += 1;
+      if (l.status === "Cancelled") entry.cancelled += 1;
+      if (l.employee && typeof l.employee === "object")
+        entry.empObj = l.employee;
+    });
+
+    const summaries = Array.from(map.values());
+    // Sort alphabetically by employee name A-Z
+    summaries.sort((a, b) => {
+      const nameA = getEmployeeDisplayName(a.empObj, employees).toLowerCase();
+      const nameB = getEmployeeDisplayName(b.empObj, employees).toLowerCase();
+      return nameA.localeCompare(nameB);
+    });
+    return summaries;
+  }, [filteredLeaves, employees, isAdmin]);
+
+  const selectedEmployeeLeaves = useMemo(() => {
+    if (!selectedEmployeeId) return [];
+    return filteredLeaves.filter(
+      (l) => (l.employee?._id || l.employee) === selectedEmployeeId,
+    );
+  }, [filteredLeaves, selectedEmployeeId]);
+
+  const selectedEmployeeObj = useMemo(() => {
+    if (!selectedEmployeeId) return null;
+    return (
+      employees.find((e) => e._id === selectedEmployeeId) ||
+      selectedEmployeeLeaves[0]?.employee ||
+      null
+    );
+  }, [selectedEmployeeId, employees, selectedEmployeeLeaves]);
+
+  const selectedEmployeeStats = useMemo(() => {
+    const empStats = { total: 0, approved: 0, pending: 0, rejected: 0 };
+    selectedEmployeeLeaves.forEach((l) => {
+      empStats.total += 1;
+      if (l.status === "Approved") empStats.approved += 1;
+      if (l.status === "Pending") empStats.pending += 1;
+      if (l.status === "Rejected") empStats.rejected += 1;
+    });
+    return empStats;
+  }, [selectedEmployeeLeaves]);
+
+  const renderLeaveTable = (leavesToRender, showEmployeeColumn = false) => (
+    <div className="rounded-xl border border-blue-100 overflow-hidden shadow-sm">
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-sm">
+          <thead>
+            <tr className="bg-indigo-600 border-b border-indigo-700">
+              {showEmployeeColumn && (
+                <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider whitespace-nowrap">
+                  Employee
+                </th>
+              )}
+              <th className="px-2 py-3 text-center text-xs font-bold text-white uppercase tracking-wider whitespace-nowrap">
+                Leave Type
+              </th>
+              <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider whitespace-nowrap">
+                From
+              </th>
+              <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider whitespace-nowrap">
+                To
+              </th>
+              <th className="px-2 py-3 text-center text-xs font-bold text-white uppercase tracking-wider whitespace-nowrap">
+                Days
+              </th>
+              <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider whitespace-nowrap">
+                Reason
+              </th>
+              <th className="px-2 py-3 text-center text-xs font-bold text-white uppercase tracking-wider whitespace-nowrap">
+                Status
+              </th>
+              <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">
+                Admin <br /> Comment
+              </th>
+              <th className="px-2 py-3 text-center text-xs font-bold text-white uppercase tracking-wider whitespace-nowrap">
+                Action
+              </th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-blue-50">
+            {loading ? (
+              <tr>
+                <td
+                  colSpan={showEmployeeColumn ? 9 : 8}
+                  className="px-2 py-10 text-center"
+                >
+                  <div className="flex flex-col items-center gap-2 text-gray-400">
+                    <svg
+                      className="w-6 h-6 animate-spin text-indigo-400"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      />
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8v8z"
+                      />
+                    </svg>
+                    <span className="text-sm font-medium">
+                      Loading records...
+                    </span>
+                  </div>
+                </td>
+              </tr>
+            ) : leavesToRender.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={showEmployeeColumn ? 9 : 8}
+                  className="px-2 py-12 text-center"
+                >
+                  <div className="flex flex-col items-center gap-2 text-gray-400">
+                    <span className="text-3xl">📭</span>
+                    <p className="text-sm font-medium text-gray-500">
+                      No leave records found
+                    </p>
+                  </div>
+                </td>
+              </tr>
+            ) : (
+              leavesToRender.map((leave, idx) => (
+                <tr
+                  key={leave._id}
+                  className={`transition-colors duration-150 hover:bg-blue-100/50 ${idx % 2 === 0 ? "bg-white" : "bg-blue-50/30"}`}
+                >
+                  {showEmployeeColumn && (
+                    <td className="px-2 py-3 whitespace-nowrap">
+                      <span className="font-medium text-gray-800 text-sm">
+                        {getEmployeeDisplayName(leave.employee, employees)}
+                      </span>
+                    </td>
+                  )}
+                  <td className="px-2 py-3 whitespace-nowrap text-center">
+                    <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-100">
+                      {leave.leaveType}
+                    </span>
+                  </td>
+                  <td className="px-2 py-3 whitespace-nowrap text-xs text-gray-600 font-medium">
+                    {formatDate(leave.startDate)}
+                  </td>
+                  <td className="px-2 py-3 whitespace-nowrap text-xs text-gray-600 font-medium">
+                    {formatDate(leave.endDate)}
+                  </td>
+                  <td className="px-2 py-3 whitespace-nowrap text-center">
+                    <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gray-100 text-gray-700 text-xs font-bold">
+                      {leave.totalLeaveDays}
+                    </span>
+                  </td>
+                  <td
+                    className="px-2 py-3 text-xs text-gray-500 max-w-[150px] truncate"
+                    title={leave.reason}
+                  >
+                    {leave.reason || (
+                      <span className="text-gray-300 italic">—</span>
+                    )}
+                  </td>
+                  <td className="px-2 py-3 whitespace-nowrap text-center">
+                    {getStatusBadge(leave.status)}
+                  </td>
+                  <td
+                    className="px-2 py-3 text-xs text-gray-400 max-w-[150px] truncate"
+                    title={leave.adminComment}
+                  >
+                    {leave.adminComment || (
+                      <span className="not-italic text-gray-300">—</span>
+                    )}
+                  </td>
+                  <td className="px-2 py-3 whitespace-nowrap text-center">
+                    {isAdmin ? (
+                      leave.status === "Pending" ? (
+                        <div className="flex justify-center gap-1">
+                          <button
+                            onClick={() => openApproveModal(leave._id)}
+                            className="inline-flex items-center gap-0.5 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-md hover:bg-emerald-100 transition-colors duration-150"
+                          >
+                            ✓ Approve
+                          </button>
+                          <button
+                            onClick={() => openRejectModal(leave._id)}
+                            className="inline-flex items-center gap-0.5 text-[11px] font-semibold text-rose-700 bg-rose-50 border border-rose-200 px-2 py-1 rounded-md hover:bg-rose-100 transition-colors duration-150"
+                          >
+                            ✕ Reject
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-gray-300 text-sm select-none">
+                          —
+                        </span>
+                      )
+                    ) : leave.status === "Pending" ? (
+                      <button
+                        onClick={() => handleCancelLeave(leave._id)}
+                        className="inline-flex items-center gap-0.5 text-[11px] font-semibold text-gray-600 bg-gray-50 border border-gray-200 px-2 py-1 rounded-md hover:bg-gray-100 transition-colors duration-150"
+                      >
+                        Cancel
+                      </button>
+                    ) : (
+                      <span className="text-gray-300 text-sm select-none">
+                        —
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
@@ -337,7 +648,13 @@ const Leave = () => {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex items-center gap-4 hover:shadow-md transition-all duration-200 hover:-translate-y-0.5">
+        <div
+          onClick={() => {
+            setFilters({ ...filters, status: "" });
+            setCurrentPage(1);
+          }}
+          className={`bg-white p-5 rounded-xl shadow-sm border flex items-center gap-4 hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 cursor-pointer ${!filters.status ? "border-indigo-500 ring-2 ring-indigo-100" : "border-gray-100"}`}
+        >
           <div className="w-12 h-12 rounded-xl bg-indigo-50 flex items-center justify-center text-2xl flex-shrink-0">
             📋
           </div>
@@ -348,7 +665,13 @@ const Leave = () => {
             <p className="text-3xl font-bold text-gray-800">{stats.total}</p>
           </div>
         </div>
-        <div className="bg-white p-5 rounded-xl shadow-sm border border-emerald-100 flex items-center gap-4 hover:shadow-md transition-all duration-200 hover:-translate-y-0.5">
+        <div
+          onClick={() => {
+            setFilters({ ...filters, status: "Approved" });
+            setCurrentPage(1);
+          }}
+          className={`bg-white p-5 rounded-xl shadow-sm border flex items-center gap-4 hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 cursor-pointer ${filters.status === "Approved" ? "border-emerald-500 ring-2 ring-emerald-100" : "border-emerald-100"}`}
+        >
           <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center text-2xl flex-shrink-0">
             ✅
           </div>
@@ -361,7 +684,13 @@ const Leave = () => {
             </p>
           </div>
         </div>
-        <div className="bg-white p-5 rounded-xl shadow-sm border border-amber-100 flex items-center gap-4 hover:shadow-md transition-all duration-200 hover:-translate-y-0.5">
+        <div
+          onClick={() => {
+            setFilters({ ...filters, status: "Pending" });
+            setCurrentPage(1);
+          }}
+          className={`bg-white p-5 rounded-xl shadow-sm border flex items-center gap-4 hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 cursor-pointer ${filters.status === "Pending" ? "border-amber-500 ring-2 ring-amber-100" : "border-amber-100"}`}
+        >
           <div className="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center text-2xl flex-shrink-0">
             ⏳
           </div>
@@ -372,7 +701,13 @@ const Leave = () => {
             <p className="text-3xl font-bold text-amber-500">{stats.pending}</p>
           </div>
         </div>
-        <div className="bg-white p-5 rounded-xl shadow-sm border border-rose-100 flex items-center gap-4 hover:shadow-md transition-all duration-200 hover:-translate-y-0.5">
+        <div
+          onClick={() => {
+            setFilters({ ...filters, status: "Rejected" });
+            setCurrentPage(1);
+          }}
+          className={`bg-white p-5 rounded-xl shadow-sm border flex items-center gap-4 hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 cursor-pointer ${filters.status === "Rejected" ? "border-rose-500 ring-2 ring-rose-100" : "border-rose-100"}`}
+        >
           <div className="w-12 h-12 rounded-xl bg-rose-50 flex items-center justify-center text-2xl flex-shrink-0">
             ❌
           </div>
@@ -387,21 +722,38 @@ const Leave = () => {
 
       {/* Admin Filters */}
       {isAdmin && (
-        <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-semibold text-gray-700">🔍 Filters</h3>
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+          <div className="flex items-center gap-2 mb-5">
+            <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+            </svg>
+            <h3 className="text-base font-semibold text-gray-800">Filter Records</h3>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-gray-500 mb-1">
-                Status
-              </label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="space-y-1.5">
+              <label className="block text-sm font-medium text-gray-700">Employee</label>
               <select
-                className="w-full border-gray-300 rounded-lg shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm p-2.5 border"
+                className="w-full border-gray-200 border rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors outline-none bg-gray-50 hover:bg-gray-100/50"
+                value={filters.employee}
+                onChange={(e) => { setFilters({ ...filters, employee: e.target.value }); setCurrentPage(1); }}
+              >
+                <option value="">All Employees</option>
+                {employees
+                  .slice()
+                  .sort((a, b) => getEmployeeDisplayName(a, employees).localeCompare(getEmployeeDisplayName(b, employees)))
+                  .map((emp) => (
+                    <option key={emp._id} value={emp._id}>
+                      {emp.name || `${emp.firstName || ""} ${emp.lastName || ""}`.trim() || emp.email}
+                    </option>
+                  ))}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="block text-sm font-medium text-gray-700">Status</label>
+              <select
+                className="w-full border-gray-200 border rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors outline-none bg-gray-50 hover:bg-gray-100/50"
                 value={filters.status}
-                onChange={(e) =>
-                  setFilters({ ...filters, status: e.target.value })
-                }
+                onChange={(e) => { setFilters({ ...filters, status: e.target.value }); setCurrentPage(1); }}
               >
                 <option value="">All Statuses</option>
                 <option value="Pending">Pending</option>
@@ -410,43 +762,16 @@ const Leave = () => {
                 <option value="Cancelled">Cancelled</option>
               </select>
             </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-500 mb-1">
-                Employee
-              </label>
+            <div className="space-y-1.5">
+              <label className="block text-sm font-medium text-gray-700">Leave Type</label>
               <select
-                className="w-full border-gray-300 rounded-lg shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm p-2.5 border"
-                value={filters.employee}
-                onChange={(e) =>
-                  setFilters({ ...filters, employee: e.target.value })
-                }
-              >
-                <option value="">All Employees</option>
-                {employees.map((emp) => (
-                  <option key={emp._id} value={emp._id}>
-                    {emp.name ||
-                      `${emp.firstName || ""} ${emp.lastName || ""}`.trim() ||
-                      emp.email}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-500 mb-1">
-                Leave Type
-              </label>
-              <select
-                className="w-full border-gray-300 rounded-lg shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm p-2.5 border"
+                className="w-full border-gray-200 border rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors outline-none bg-gray-50 hover:bg-gray-100/50"
                 value={filters.leaveType}
-                onChange={(e) =>
-                  setFilters({ ...filters, leaveType: e.target.value })
-                }
+                onChange={(e) => { setFilters({ ...filters, leaveType: e.target.value }); setCurrentPage(1); }}
               >
                 <option value="">All Types</option>
                 {VALID_LEAVE_TYPES.map((lt) => (
-                  <option key={lt} value={lt}>
-                    {lt}
-                  </option>
+                  <option key={lt} value={lt}>{lt}</option>
                 ))}
               </select>
             </div>
@@ -454,138 +779,142 @@ const Leave = () => {
         </div>
       )}
 
-      {/* Leave Table */}
-      <div className="bg-white rounded-md border border-gray-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-100">
-              <tr>
-                {isAdmin && (
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Employee
-                  </th>
-                )}
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Leave Type
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Duration
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Days
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Reason
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Admin Comment
-                </th>
-                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Action
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {loading ? (
-                <tr>
-                  <td
-                    colSpan={isAdmin ? 8 : 7}
-                    className="px-6 py-8 text-center text-gray-500 text-sm"
-                  >
-                    Loading...
-                  </td>
-                </tr>
-              ) : (isAdmin ? filteredLeaves : leaves).length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={isAdmin ? 8 : 7}
-                    className="px-6 py-8 text-center text-gray-500 text-sm"
-                  >
-                    No leave records found.
-                  </td>
-                </tr>
-              ) : (
-                (isAdmin ? filteredLeaves : leaves).map((leave) => (
-                  <tr key={leave._id} className="hover:bg-gray-50">
-                    {isAdmin && (
-                      <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-800">
-                        {leave.employee?.name ||
-                          `${leave.employee?.firstName || ""} ${leave.employee?.lastName || ""}`.trim() ||
-                          leave.employee?.email ||
-                          "-"}
-                      </td>
-                    )}
-                    <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-700">
-                      {leave.leaveType}
-                    </td>
-                    <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-500">
-                      {formatDate(leave.startDate)} to{" "}
-                      {formatDate(leave.endDate)}
-                    </td>
-                    <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-700">
-                      {leave.totalLeaveDays}
-                    </td>
-                    <td
-                      className="px-6 py-3 text-sm text-gray-500 max-w-xs truncate"
-                      title={leave.reason}
-                    >
-                      {leave.reason}
-                    </td>
-                    <td className="px-6 py-3 whitespace-nowrap">
-                      {getStatusBadge(leave.status)}
-                    </td>
-                    <td
-                      className="px-6 py-3 text-sm text-gray-500 max-w-xs truncate"
-                      title={leave.adminComment}
-                    >
-                      {leave.adminComment || "-"}
-                    </td>
-                    <td className="px-6 py-3 whitespace-nowrap text-center text-sm">
-                      {isAdmin ? (
-                        leave.status === "Pending" ? (
-                          <div className="flex justify-center gap-2">
-                            <button
-                              onClick={() => openApproveModal(leave._id)}
-                              className="text-green-700 border border-green-300 px-3 py-1 rounded hover:bg-green-50"
-                            >
-                              Approve
-                            </button>
-                            <button
-                              onClick={() => openRejectModal(leave._id)}
-                              className="text-red-700 border border-red-300 px-3 py-1 rounded hover:bg-red-50"
-                            >
-                              Reject
-                            </button>
-                          </div>
-                        ) : (
-                          <span className="text-gray-400">-</span>
-                        )
-                      ) : leave.status === "Pending" ? (
-                        <button
-                          onClick={() => handleCancelLeave(leave._id)}
-                          className="text-gray-600 border border-gray-300 px-3 py-1 rounded hover:bg-gray-100"
-                        >
-                          Cancel
-                        </button>
-                      ) : (
-                        <span className="text-gray-400">-</span>
-                      )}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+      {/* Employee / Admin Views */}
+      {!isAdmin ? (
+        <div className="space-y-4">
+          {renderLeaveTable(
+            filteredLeaves.slice(
+              (currentPage - 1) * itemsPerPage,
+              currentPage * itemsPerPage,
+            ),
+            false,
+          )}
+          <Pagination
+            totalItems={filteredLeaves.length}
+            itemsPerPage={itemsPerPage}
+            currentPage={currentPage}
+            setCurrentPage={setCurrentPage}
+          />
         </div>
-      </div>
+      ) : (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="p-6 border-b border-gray-100 flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-bold text-gray-900">Employees</h2>
+              <p className="text-sm text-gray-500 mt-1">
+                {employeeSummaries.length} employee
+                {employeeSummaries.length !== 1 ? "s" : ""} · click a card to
+                view leave details
+              </p>
+            </div>
+            <span className="hidden sm:inline-flex items-center gap-1.5 text-xs font-semibold text-gray-400 bg-gray-50 border border-gray-100 px-3 py-1.5 rounded-full">
+              <svg
+                className="w-3.5 h-3.5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-1.63a4 4 0 100-8 4 4 0 000 8zm6 3.13a4 4 0 010 7.75M9 12.13a4 4 0 010 7.75"
+                ></path>
+              </svg>
+              Based on current filters
+            </span>
+          </div>
+
+          {employeeSummaries.length === 0 ? (
+            <div className="py-14 text-center text-gray-400">
+              <p className="text-base font-medium text-gray-500">
+                No leave records found
+              </p>
+              <p className="text-sm mt-1">Try adjusting your filters</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 p-6">
+              {employeeSummaries
+                .slice(
+                  (currentPage - 1) * itemsPerPage,
+                  currentPage * itemsPerPage,
+                )
+                .map((s) => (
+                  <button
+                    key={s.empId}
+                    onClick={() => openEmployeeDetail(s.empId)}
+                    className="text-left bg-white hover:bg-indigo-50/40 border border-gray-100 hover:border-indigo-200 rounded-2xl p-5 transition-all duration-200 shadow-sm hover:shadow-md active:scale-[0.99] group relative overflow-hidden"
+                  >
+                    <span className="absolute left-0 top-0 h-full w-1 bg-indigo-500 scale-y-0 group-hover:scale-y-100 origin-top transition-transform duration-200"></span>
+                    <div className="flex items-start justify-between gap-3 mb-4">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-11 h-11 rounded-full shrink-0 shadow-sm ring-2 ring-white overflow-hidden bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
+                          {s.empObj?.profileImage ? (
+                            <img
+                              src={s.empObj.profileImage}
+                              alt={getEmployeeDisplayName(s.empObj, employees)}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <span className="text-white font-bold text-sm">
+                              {getEmployeeDisplayName(s.empObj, employees)
+                                .charAt(0)
+                                .toUpperCase()}
+                            </span>
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-semibold text-gray-900 truncate group-hover:text-indigo-700 transition-colors">
+                            {getEmployeeDisplayName(s.empObj, employees)}
+                          </p>
+                          <p className="text-xs text-gray-500 truncate">
+                            {s.empObj?.email ||
+                              `${s.total} record${s.total !== 1 ? "s" : ""}`}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex gap-2 flex-wrap">
+                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-gray-600 bg-gray-50 px-2.5 py-1 rounded-md border border-gray-200">
+                        Total: {s.total}
+                      </span>
+                      {s.pending > 0 && (
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-md border border-amber-200">
+                          {s.pending} Pending
+                        </span>
+                      )}
+                      {s.approved > 0 && (
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200">
+                          {s.approved} Approved
+                        </span>
+                      )}
+                      {s.rejected > 0 && (
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-rose-700 bg-rose-50 px-2.5 py-1 rounded-md border border-rose-200">
+                          {s.rejected} Rejected
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                ))}
+            </div>
+          )}
+          {employeeSummaries.length > itemsPerPage && (
+            <div className="p-4 bg-gray-50/50 border-t border-gray-100">
+              <Pagination
+                totalItems={employeeSummaries.length}
+                itemsPerPage={itemsPerPage}
+                currentPage={currentPage}
+                setCurrentPage={setCurrentPage}
+              />
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ---------------- MODALS ---------------- */}
 
       {showApplyModal && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/40 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[70] overflow-y-auto bg-black/40 flex items-center justify-center p-4">
           <div className="bg-white rounded-md border border-gray-200 w-full max-w-lg overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-200">
               <h3 className="text-lg font-semibold text-gray-800">
@@ -732,7 +1061,7 @@ const Leave = () => {
       )}
 
       {showApproveModal && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/40 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[70] overflow-y-auto bg-black/40 flex items-center justify-center p-4">
           <div className="bg-white rounded-md border border-gray-200 w-full max-w-md overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-200">
               <h3 className="text-lg font-semibold text-gray-800">
@@ -780,7 +1109,7 @@ const Leave = () => {
       )}
 
       {showRejectModal && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/40 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[70] overflow-y-auto bg-black/40 flex items-center justify-center p-4">
           <div className="bg-white rounded-md border border-gray-200 w-full max-w-md overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-200">
               <h3 className="text-lg font-semibold text-gray-800">
@@ -822,6 +1151,122 @@ const Leave = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ---------------- ADMIN EMPLOYEE DETAIL MODAL ---------------- */}
+      {isAdmin && selectedEmployeeId && (
+        <div className="fixed inset-0 z-[60] bg-gray-900/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-5xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
+            <div className="px-6 py-5 border-b border-gray-100 flex justify-between items-start bg-gray-50/50 shrink-0">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 rounded-full shrink-0 shadow-sm ring-2 ring-white overflow-hidden bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
+                  {selectedEmployeeObj?.profileImage ? (
+                    <img
+                      src={selectedEmployeeObj.profileImage}
+                      alt={getEmployeeDisplayName(
+                        selectedEmployeeObj,
+                        employees,
+                      )}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <span className="text-white font-bold text-xl">
+                      {getEmployeeDisplayName(selectedEmployeeObj, employees)
+                        .charAt(0)
+                        .toUpperCase()}
+                    </span>
+                  )}
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900">
+                    {getEmployeeDisplayName(selectedEmployeeObj, employees)}
+                  </h3>
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-sm text-gray-500">
+                    {selectedEmployeeObj?.email && (
+                      <span>{selectedEmployeeObj.email}</span>
+                    )}
+                    {selectedEmployeeObj?.department && (
+                      <span>{selectedEmployeeObj.department}</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={closeEmployeeDetail}
+                className="text-gray-400 hover:text-gray-600 transition-colors shrink-0 p-1"
+              >
+                <svg
+                  className="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M6 18L18 6M6 6l12 12"
+                  ></path>
+                </svg>
+              </button>
+            </div>
+
+            <div className="px-6 py-5 border-b border-gray-100 grid grid-cols-2 sm:grid-cols-4 gap-4 shrink-0">
+              <div className="bg-gray-50 rounded-xl p-4 text-center border border-gray-100">
+                <p className="text-xl font-bold text-gray-900">
+                  {selectedEmployeeStats.total}
+                </p>
+                <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider mt-1">
+                  Total Leaves
+                </p>
+              </div>
+              <div className="bg-emerald-50 rounded-xl p-4 text-center border border-emerald-100">
+                <p className="text-xl font-bold text-emerald-700">
+                  {selectedEmployeeStats.approved}
+                </p>
+                <p className="text-xs text-emerald-600 font-semibold uppercase tracking-wider mt-1">
+                  Approved
+                </p>
+              </div>
+              <div className="bg-amber-50 rounded-xl p-4 text-center border border-amber-100">
+                <p className="text-xl font-bold text-amber-700">
+                  {selectedEmployeeStats.pending}
+                </p>
+                <p className="text-xs text-amber-600 font-semibold uppercase tracking-wider mt-1">
+                  Pending
+                </p>
+              </div>
+              <div className="bg-rose-50 rounded-xl p-4 text-center border border-rose-100">
+                <p className="text-xl font-bold text-rose-700">
+                  {selectedEmployeeStats.rejected}
+                </p>
+                <p className="text-xs text-rose-600 font-semibold uppercase tracking-wider mt-1">
+                  Rejected
+                </p>
+              </div>
+            </div>
+
+            <div className="overflow-y-auto p-4 bg-gray-50/30">
+              {renderLeaveTable(
+                selectedEmployeeLeaves.slice(
+                  (detailPage - 1) * itemsPerPage,
+                  detailPage * itemsPerPage,
+                ),
+                false,
+              )}
+            </div>
+            {selectedEmployeeLeaves.length > itemsPerPage && (
+              <div className="p-4 bg-gray-50/50 border-t border-gray-100 shrink-0">
+                <Pagination
+                  totalItems={selectedEmployeeLeaves.length}
+                  itemsPerPage={itemsPerPage}
+                  currentPage={detailPage}
+                  setCurrentPage={setDetailPage}
+                />
+              </div>
+            )}
           </div>
         </div>
       )}

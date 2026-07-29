@@ -239,7 +239,7 @@ function Holiday() {
           {isAdmin && (
             <button
               onClick={openAddForm}
-              className="text-sm font-medium text-white px-4 py-2.5 rounded-lg bg-blue-700 hover:opacity-90 transition shrink-0"
+              className="text-sm font-medium text-white px-4 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 transition shrink-0"
             >
               + Add Holiday
             </button>
@@ -258,7 +258,7 @@ function Holiday() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-gray-500">
+                <tr className="bg-blue-600 text-left text-white">
                   <th className="px-6 py-3 font-medium">Name</th>
                   <th className="px-6 py-3 font-medium">Date</th>
                   <th className="px-6 py-3 font-medium">Description</th>
@@ -292,7 +292,7 @@ function Holiday() {
                       <td className="px-6 py-3 text-right space-x-3">
                         <button
                           onClick={() => handleEdit(holiday)}
-                          className="text-indigo-600 hover:text-indigo-800 text-sm font-medium"
+                          className="text-blue-600 hover:text-blue-800 text-sm font-medium"
                         >
                           Edit
                         </button>
@@ -320,13 +320,13 @@ function Holiday() {
       {isAdmin && showForm && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center px-4 z-50">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
-            <div className="flex items-center justify-between mb-5">
-              <h3 className="text-xl font-bold text-gray-800">
+            <div className="flex items-center justify-between mb-5 bg-blue-50 p-6 -mx-6 -mt-6 rounded-t-2xl border-b border-blue-100">
+              <h3 className="text-xl font-bold text-blue-800">
                 {editingId ? "Edit Holiday" : "Add Holiday"}
               </h3>
               <button
                 onClick={resetForm}
-                className="text-gray-400 hover:text-gray-600 text-xl leading-none"
+                className="text-blue-400 hover:text-blue-600 text-xl leading-none"
               >
                 ✕
               </button>
@@ -344,7 +344,7 @@ function Holiday() {
                   onChange={handleChange}
                   required
                   placeholder="e.g. Diwali"
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-gray-800 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-gray-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                 />
               </div>
 
@@ -356,7 +356,7 @@ function Holiday() {
                   value={formData.date}
                   onChange={handleChange}
                   required
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-gray-800 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-gray-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                 />
               </div>
 
@@ -370,7 +370,7 @@ function Holiday() {
                   onChange={handleChange}
                   rows={3}
                   placeholder="Optional details"
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-gray-800 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 resize-none"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-gray-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 resize-none"
                 />
               </div>
 
@@ -380,7 +380,7 @@ function Holiday() {
                   name="type"
                   value={formData.type}
                   onChange={handleChange}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-gray-800 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-gray-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                 >
                   {TYPE_OPTIONS.map((t) => (
                     <option key={t} value={t}>
@@ -401,7 +401,7 @@ function Holiday() {
                 <button
                   type="submit"
                   disabled={savingForm}
-                  className="flex-1 px-4 py-2.5 text-sm font-medium text-white rounded-lg bg-blue-700 hover:opacity-90 transition disabled:opacity-50"
+                  className="flex-1 px-4 py-2.5 text-sm font-medium text-white rounded-lg bg-blue-600 hover:bg-blue-700 transition disabled:opacity-50"
                 >
                   {savingForm
                     ? "Saving..."
@@ -440,10 +440,10 @@ function Holiday() {
               Delete Holiday?
             </h3>
             <p className="text-sm text-gray-500 text-center mt-2">
-              {" "}
+              Are you sure you want to delete{" "}
               <span className="font-semibold text-gray-700">
                 {deleteConfirm.holiday.name}
-              </span>{" "}
+              </span>?
             </p>
 
             <div className="flex gap-3 mt-6">

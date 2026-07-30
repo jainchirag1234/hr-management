@@ -8,6 +8,7 @@ import {
   updateUser,
   deleteUser,
 } from "../services/auth.service";
+import { TableSkeleton } from "../component/Skeleton";
 
 function Employee() {
   const { user } = useContext(AuthContext);
@@ -164,7 +165,7 @@ function Employee() {
 
   return (
     <div className="min-h-screen w-full bg-gray-50 flex flex-col">
-      <main className="flex-1 px-4 sm:px-6 py-6 sm:py-8 max-w-6xl mx-auto w-full">
+      <main className="flex-1 px-4 sm:px-6 py-6 sm:py-8 max-w-6xl mx-auto w-full page-enter">
         {error && (
           <div className="mb-6 bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-lg flex items-center justify-between">
             <span>{error}</span>
@@ -178,8 +179,11 @@ function Employee() {
         )}
 
         {loading ? (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 px-6 py-10 text-center text-gray-400 text-sm">
-            Loading...
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="px-4 sm:px-6 py-4 border-b border-gray-100">
+              <div className="skeleton skeleton-title" style={{ width: "160px" }} />
+            </div>
+            <TableSkeleton rows={6} cols={5} />
           </div>
         ) : isAdmin ? (
           /* ============ ADMIN VIEW: all employee records ============ */
@@ -430,7 +434,7 @@ function Employee() {
 
       {/* Add / Edit modal - reused for both roles, form adapts via `mode` */}
       {showForm && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center px-4 z-50">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center px-4 z-50 modal-backdrop">
           <EmployeeForm
             initialData={isAdmin ? editingEmployee : profile}
             mode={isAdmin ? "admin" : "self"}
@@ -444,8 +448,8 @@ function Employee() {
 
       {/* View modal - admin only, read-only employee details */}
       {viewingEmployee && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center px-4 z-50">
-          <div className="bg-white rounded-xl shadow-lg w-full max-w-lg p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50 modal-backdrop">
+          <div className="bg-white rounded-xl shadow-lg w-full max-w-lg p-4 sm:p-6 max-h-[90vh] overflow-y-auto modal-content">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-800">
                 {viewingEmployee.firstName} {viewingEmployee.lastName}
@@ -560,8 +564,8 @@ function Employee() {
       )}
       {/* ======== DELETE CONFIRMATION MODAL ======== */}
       {deleteConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center px-4 z-50">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 animate-fade-in">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 modal-backdrop">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-4 sm:p-6 max-h-[90vh] overflow-y-auto animate-fade-in modal-content">
             {/* Icon */}
             <div className="flex items-center justify-center w-14 h-14 rounded-full bg-red-100 mx-auto mb-4">
               <svg

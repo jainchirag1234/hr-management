@@ -161,11 +161,11 @@ const Designation = () => {
         )}
 
         {/* Stat cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           {stats.map((s) => (
             <div
               key={s.label}
-              className="bg-white rounded-xl shadow-sm border border-gray-100 p-5"
+              className="bg-gradient-to-br from-blue-50 to-white rounded-xl shadow-md shadow-blue-500/10 border border-blue-100 px-5 py-7 flex flex-col justify-center transition-all hover:shadow-lg hover:shadow-blue-500/20"
             >
               <p className="text-gray-500 text-sm">{s.label}</p>
               <p className={`text-3xl font-bold mt-1 ${s.colorClass}`}>
@@ -176,7 +176,7 @@ const Designation = () => {
         </div>
 
         {/* Table card */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="bg-white rounded-xl shadow-md shadow-blue-500/10 border border-blue-100 overflow-hidden">
           <div className="px-4 sm:px-6 py-4 border-b border-gray-100 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-gray-800">
               Designations
@@ -316,7 +316,7 @@ const Designation = () => {
 
       {/* Add / Edit modal */}
       {showForm && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center px-4 z-50">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl shadow-lg w-full max-w-md p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-5 bg-cyan-50 p-4 sm:px-6 sm:py-5 -mx-4 sm:-mx-6 -mt-4 sm:-mt-6 rounded-t-xl border-b border-cyan-100">
               <h3 className="text-xl font-bold text-cyan-800">
@@ -421,8 +421,8 @@ const Designation = () => {
 
       {/* Delete confirmation modal */}
       {deleteConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center px-4 z-50">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-center w-14 h-14 rounded-full bg-red-100 mx-auto mb-4">
               <svg
                 xmlns="http://www.w3.org/2000/svg"

@@ -12,6 +12,7 @@ import {
   rejectLeave,
   getAllUsers,
 } from "../services/auth.service";
+import Pagination from "../component/Pagination";
 
 const VALID_LEAVE_TYPES = [
   "Casual Leave",
@@ -31,37 +32,6 @@ const getEmployeeDisplayName = (empObjOrId, employeesList = []) => {
   return empObj.name || fullName || empObj.email || "-";
 };
 
-const Pagination = ({
-  totalItems,
-  itemsPerPage,
-  currentPage,
-  setCurrentPage,
-}) => {
-  const totalPages = Math.ceil(totalItems / itemsPerPage);
-  if (totalPages <= 1) return null;
-
-  return (
-    <div className="flex items-center justify-center gap-2">
-      <button
-        onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-        disabled={currentPage === 1}
-        className="px-3 py-1 text-sm font-medium rounded-md bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        Previous
-      </button>
-      <span className="text-sm text-gray-600 font-medium">
-        Page {currentPage} of {totalPages}
-      </span>
-      <button
-        onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
-        disabled={currentPage === totalPages}
-        className="px-3 py-1 text-sm font-medium rounded-md bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        Next
-      </button>
-    </div>
-  );
-};
 
 const Leave = () => {
   const { user, socket } = useContext(AuthContext); // <-- socket bhi liya
@@ -81,6 +51,8 @@ const Leave = () => {
     startDate: "",
     endDate: "",
     reason: "",
+    isHalfDay: false,
+    halfDaySession: "First Half",
   });
 
   // Admin states
@@ -120,13 +92,15 @@ const Leave = () => {
         data = res.data.data || [];
       }
 
-      // Default sort: alphabetical by employee name (A-Z)
+      // Default sort: date-wise (latest first), then by name A-Z
       data.sort((a, b) => {
+        const dateDiff = new Date(b.startDate || 0) - new Date(a.startDate || 0);
+        if (dateDiff !== 0) return dateDiff;
         const nameA = getEmpName(a.employee);
         const nameB = getEmpName(b.employee);
         if (nameA < nameB) return -1;
         if (nameA > nameB) return 1;
-        return new Date(b.startDate || 0) - new Date(a.startDate || 0);
+        return 0;
       });
 
       setLeaves(data);
@@ -205,13 +179,18 @@ const Leave = () => {
 
   // ---------------- EMPLOYEE HANDLERS ----------------
   const handleApplyChange = (e) => {
-    setApplyForm({ ...applyForm, [e.target.name]: e.target.value });
+    const { name, value, type, checked } = e.target;
+    setApplyForm({ ...applyForm, [name]: type === "checkbox" ? checked : value });
   };
 
   const handleApplySubmit = async (e) => {
     e.preventDefault();
     try {
-      await applyLeave(applyForm);
+      const dataToSubmit = { ...applyForm };
+      if (dataToSubmit.isHalfDay) {
+        dataToSubmit.endDate = dataToSubmit.startDate;
+      }
+      await applyLeave(dataToSubmit);
       showMessage("success", "Leave applied successfully.");
       setShowApplyModal(false);
       setApplyForm({
@@ -219,6 +198,8 @@ const Leave = () => {
         startDate: "",
         endDate: "",
         reason: "",
+        isHalfDay: false,
+        halfDaySession: "First Half",
       });
       fetchLeaves();
     } catch (err) {
@@ -374,6 +355,8 @@ const Leave = () => {
           pending: 0,
           rejected: 0,
           cancelled: 0,
+          halfDay: 0,
+          latestStartDate: null,
         });
       }
       const entry = map.get(empId);
@@ -382,25 +365,27 @@ const Leave = () => {
       if (l.status === "Pending") entry.pending += 1;
       if (l.status === "Rejected") entry.rejected += 1;
       if (l.status === "Cancelled") entry.cancelled += 1;
+      if (l.isHalfDay) entry.halfDay += 1;
       if (l.employee && typeof l.employee === "object")
         entry.empObj = l.employee;
+      // Track most recent startDate
+      const sDate = l.startDate ? new Date(l.startDate).getTime() : 0;
+      if (!entry.latestStartDate || sDate > entry.latestStartDate) {
+        entry.latestStartDate = sDate;
+      }
     });
 
     const summaries = Array.from(map.values());
-    // Sort alphabetically by employee name A-Z
-    summaries.sort((a, b) => {
-      const nameA = getEmployeeDisplayName(a.empObj, employees).toLowerCase();
-      const nameB = getEmployeeDisplayName(b.empObj, employees).toLowerCase();
-      return nameA.localeCompare(nameB);
-    });
+    // Sort by most recent leave date (latest first)
+    summaries.sort((a, b) => (b.latestStartDate || 0) - (a.latestStartDate || 0));
     return summaries;
   }, [filteredLeaves, employees, isAdmin]);
 
   const selectedEmployeeLeaves = useMemo(() => {
     if (!selectedEmployeeId) return [];
-    return filteredLeaves.filter(
-      (l) => (l.employee?._id || l.employee) === selectedEmployeeId,
-    );
+    return filteredLeaves
+      .filter((l) => (l.employee?._id || l.employee) === selectedEmployeeId)
+      .sort((a, b) => new Date(b.startDate || 0) - new Date(a.startDate || 0));
   }, [filteredLeaves, selectedEmployeeId]);
 
   const selectedEmployeeObj = useMemo(() => {
@@ -446,6 +431,9 @@ const Leave = () => {
               <th className="px-2 py-3 text-center text-xs font-bold text-white uppercase tracking-wider whitespace-nowrap">
                 Days
               </th>
+              <th className="px-2 py-3 text-center text-xs font-bold text-white uppercase tracking-wider whitespace-nowrap">
+                Half Day
+              </th>
               <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider whitespace-nowrap">
                 Reason
               </th>
@@ -464,7 +452,7 @@ const Leave = () => {
             {loading ? (
               <tr>
                 <td
-                  colSpan={showEmployeeColumn ? 9 : 8}
+                  colSpan={showEmployeeColumn ? 10 : 9}
                   className="px-2 py-10 text-center"
                 >
                   <div className="flex flex-col items-center gap-2 text-gray-400">
@@ -496,7 +484,7 @@ const Leave = () => {
             ) : leavesToRender.length === 0 ? (
               <tr>
                 <td
-                  colSpan={showEmployeeColumn ? 9 : 8}
+                  colSpan={showEmployeeColumn ? 10 : 9}
                   className="px-2 py-12 text-center"
                 >
                   <div className="flex flex-col items-center gap-2 text-gray-400">
@@ -535,6 +523,22 @@ const Leave = () => {
                     <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gray-100 text-gray-700 text-xs font-bold">
                       {leave.totalLeaveDays}
                     </span>
+                  </td>
+                  <td className="px-2 py-3 whitespace-nowrap text-center">
+                    {leave.isHalfDay ? (
+                      <div className="flex flex-col items-center gap-0.5">
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-md bg-yellow-50 text-yellow-700 border border-yellow-200">
+                          ½ Half Day
+                        </span>
+                        {leave.halfDaySession && (
+                          <span className="text-[10px] text-gray-400 font-medium">
+                            {leave.halfDaySession === "First Half" ? "🌅 Morning" : "🌆 Afternoon"}
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-gray-300 text-sm">—</span>
+                    )}
                   </td>
                   <td
                     className="px-2 py-3 text-xs text-gray-500 max-w-[150px] truncate"
@@ -600,7 +604,7 @@ const Leave = () => {
   );
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="p-6 max-w-7xl mx-auto space-y-6 page-enter">
       {/* Header */}
       <div className="relative bg-blue-700 rounded-2xl p-6 shadow-lg overflow-hidden">
         <div
@@ -647,13 +651,13 @@ const Leave = () => {
       )}
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
         <div
           onClick={() => {
             setFilters({ ...filters, status: "" });
             setCurrentPage(1);
           }}
-          className={`bg-white p-5 rounded-xl shadow-sm border flex items-center gap-4 hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 cursor-pointer ${!filters.status ? "border-indigo-500 ring-2 ring-indigo-100" : "border-gray-100"}`}
+          className={`bg-white px-5 py-7 rounded-xl shadow-sm border flex items-center gap-4 hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 cursor-pointer ${!filters.status ? "border-indigo-500 ring-2 ring-indigo-100" : "border-gray-100"}`}
         >
           <div className="w-12 h-12 rounded-xl bg-indigo-50 flex items-center justify-center text-2xl flex-shrink-0">
             📋
@@ -670,7 +674,7 @@ const Leave = () => {
             setFilters({ ...filters, status: "Approved" });
             setCurrentPage(1);
           }}
-          className={`bg-white p-5 rounded-xl shadow-sm border flex items-center gap-4 hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 cursor-pointer ${filters.status === "Approved" ? "border-emerald-500 ring-2 ring-emerald-100" : "border-emerald-100"}`}
+          className={`bg-white px-5 py-7 rounded-xl shadow-sm border flex items-center gap-4 hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 cursor-pointer ${filters.status === "Approved" ? "border-emerald-500 ring-2 ring-emerald-100" : "border-emerald-100"}`}
         >
           <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center text-2xl flex-shrink-0">
             ✅
@@ -689,7 +693,7 @@ const Leave = () => {
             setFilters({ ...filters, status: "Pending" });
             setCurrentPage(1);
           }}
-          className={`bg-white p-5 rounded-xl shadow-sm border flex items-center gap-4 hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 cursor-pointer ${filters.status === "Pending" ? "border-amber-500 ring-2 ring-amber-100" : "border-amber-100"}`}
+          className={`bg-white px-5 py-7 rounded-xl shadow-sm border flex items-center gap-4 hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 cursor-pointer ${filters.status === "Pending" ? "border-amber-500 ring-2 ring-amber-100" : "border-amber-100"}`}
         >
           <div className="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center text-2xl flex-shrink-0">
             ⏳
@@ -706,7 +710,7 @@ const Leave = () => {
             setFilters({ ...filters, status: "Rejected" });
             setCurrentPage(1);
           }}
-          className={`bg-white p-5 rounded-xl shadow-sm border flex items-center gap-4 hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 cursor-pointer ${filters.status === "Rejected" ? "border-rose-500 ring-2 ring-rose-100" : "border-rose-100"}`}
+          className={`bg-white px-5 py-7 rounded-xl shadow-sm border flex items-center gap-4 hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 cursor-pointer ${filters.status === "Rejected" ? "border-rose-500 ring-2 ring-rose-100" : "border-rose-100"}`}
         >
           <div className="w-12 h-12 rounded-xl bg-rose-50 flex items-center justify-center text-2xl flex-shrink-0">
             ❌
@@ -893,6 +897,11 @@ const Leave = () => {
                           {s.rejected} Rejected
                         </span>
                       )}
+                      {s.halfDay > 0 && (
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-yellow-700 bg-yellow-50 px-2.5 py-1 rounded-md border border-yellow-200">
+                          ½ {s.halfDay} Half Day
+                        </span>
+                      )}
                     </div>
                   </button>
                 ))}
@@ -914,8 +923,8 @@ const Leave = () => {
       {/* ---------------- MODALS ---------------- */}
 
       {showApplyModal && (
-        <div className="fixed inset-0 z-[70] overflow-y-auto bg-black/40 flex items-center justify-center p-4">
-          <div className="bg-white rounded-md border border-gray-200 w-full max-w-lg overflow-hidden">
+        <div className="fixed inset-0 z-[70] bg-black/40 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl border border-gray-200 w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="px-6 py-4 border-b border-gray-200">
               <h3 className="text-lg font-semibold text-gray-800">
                 Apply for Leave
@@ -925,120 +934,118 @@ const Leave = () => {
               </p>
             </div>
             <form onSubmit={handleApplySubmit} className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Leave Type
-                </label>
-                <select
-                  name="leaveType"
-                  required
-                  value={applyForm.leaveType}
-                  onChange={handleApplyChange}
-                  className="w-full border border-gray-300 rounded p-2 text-sm focus:ring-1 focus:ring-gray-400 focus:border-gray-400 outline-none"
-                >
-                  {VALID_LEAVE_TYPES.map((lt) => (
-                    <option key={lt} value={lt}>
-                      {lt}
-                    </option>
-                  ))}
-                </select>
+              <div className="grid grid-cols-2 gap-4 items-end">
+                <div className="col-span-2 sm:col-span-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Leave Type
+                  </label>
+                  <select
+                    name="leaveType"
+                    required
+                    value={applyForm.leaveType}
+                    onChange={handleApplyChange}
+                    className="w-full border border-gray-300 rounded p-2 text-sm focus:ring-1 focus:ring-gray-400 focus:border-gray-400 outline-none"
+                  >
+                    {VALID_LEAVE_TYPES.map((lt) => (
+                      <option key={lt} value={lt}>
+                        {lt}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="col-span-2 sm:col-span-1 pb-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      name="isHalfDay"
+                      checked={applyForm.isHalfDay}
+                      onChange={handleApplyChange}
+                      className="w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500"
+                    />
+                    <span className="text-sm font-medium text-gray-700">Apply for Half Day</span>
+                  </label>
+                </div>
               </div>
 
-              {applyForm.leaveType === "Other" ? (
-                <>
+              {applyForm.isHalfDay ? (
+                <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Reason
+                      Date
                     </label>
-                    <textarea
-                      name="reason"
+                    <input
+                      type="date"
+                      name="startDate"
                       required
-                      rows="3"
-                      value={applyForm.reason}
+                      min={today}
+                      value={applyForm.startDate}
                       onChange={handleApplyChange}
-                      placeholder="Please provide a reason for your leave..."
-                      className="w-full border border-gray-300 rounded p-2 text-sm focus:ring-1 focus:ring-gray-400 focus:border-gray-400 outline-none resize-none"
-                    ></textarea>
+                      className="w-full border border-gray-300 rounded p-2 text-sm focus:ring-1 focus:ring-gray-400 focus:border-gray-400 outline-none"
+                    />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Start Date
-                      </label>
-                      <input
-                        type="date"
-                        name="startDate"
-                        required
-                        min={today}
-                        value={applyForm.startDate}
-                        onChange={handleApplyChange}
-                        className="w-full border border-gray-300 rounded p-2 text-sm focus:ring-1 focus:ring-gray-400 focus:border-gray-400 outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        End Date
-                      </label>
-                      <input
-                        type="date"
-                        name="endDate"
-                        required
-                        min={applyForm.startDate || today}
-                        value={applyForm.endDate}
-                        onChange={handleApplyChange}
-                        className="w-full border border-gray-300 rounded p-2 text-sm focus:ring-1 focus:ring-gray-400 focus:border-gray-400 outline-none"
-                      />
-                    </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Session
+                    </label>
+                    <select
+                      name="halfDaySession"
+                      required
+                      value={applyForm.halfDaySession}
+                      onChange={handleApplyChange}
+                      className="w-full border border-gray-300 rounded p-2 text-sm focus:ring-1 focus:ring-gray-400 focus:border-gray-400 outline-none"
+                    >
+                      <option value="First Half">Morning Session</option>
+                      <option value="Second Half">Afternoon Session</option>
+                    </select>
                   </div>
-                </>
+                </div>
               ) : (
-                <>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Start Date
-                      </label>
-                      <input
-                        type="date"
-                        name="startDate"
-                        required
-                        min={today}
-                        value={applyForm.startDate}
-                        onChange={handleApplyChange}
-                        className="w-full border border-gray-300 rounded p-2 text-sm focus:ring-1 focus:ring-gray-400 focus:border-gray-400 outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        End Date
-                      </label>
-                      <input
-                        type="date"
-                        name="endDate"
-                        required
-                        min={applyForm.startDate || today}
-                        value={applyForm.endDate}
-                        onChange={handleApplyChange}
-                        className="w-full border border-gray-300 rounded p-2 text-sm focus:ring-1 focus:ring-gray-400 focus:border-gray-400 outline-none"
-                      />
-                    </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Start Date
+                    </label>
+                    <input
+                      type="date"
+                      name="startDate"
+                      required
+                      min={today}
+                      value={applyForm.startDate}
+                      onChange={handleApplyChange}
+                      className="w-full border border-gray-300 rounded p-2 text-sm focus:ring-1 focus:ring-gray-400 focus:border-gray-400 outline-none"
+                    />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Reason
+                      End Date
                     </label>
-                    <textarea
-                      name="reason"
+                    <input
+                      type="date"
+                      name="endDate"
                       required
-                      rows="3"
-                      value={applyForm.reason}
+                      min={applyForm.startDate || today}
+                      value={applyForm.endDate}
                       onChange={handleApplyChange}
-                      placeholder="Please provide a reason for your leave..."
-                      className="w-full border border-gray-300 rounded p-2 text-sm focus:ring-1 focus:ring-gray-400 focus:border-gray-400 outline-none resize-none"
-                    ></textarea>
+                      className="w-full border border-gray-300 rounded p-2 text-sm focus:ring-1 focus:ring-gray-400 focus:border-gray-400 outline-none"
+                    />
                   </div>
-                </>
+                </div>
               )}
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Reason
+                </label>
+                <textarea
+                  name="reason"
+                  required
+                  rows="3"
+                  value={applyForm.reason}
+                  onChange={handleApplyChange}
+                  placeholder="Please provide a reason for your leave..."
+                  className="w-full border border-gray-300 rounded p-2 text-sm focus:ring-1 focus:ring-gray-400 focus:border-gray-400 outline-none resize-none"
+                ></textarea>
+              </div>
 
               <div className="flex justify-end gap-3 pt-2">
                 <button
@@ -1061,8 +1068,8 @@ const Leave = () => {
       )}
 
       {showApproveModal && (
-        <div className="fixed inset-0 z-[70] overflow-y-auto bg-black/40 flex items-center justify-center p-4">
-          <div className="bg-white rounded-md border border-gray-200 w-full max-w-md overflow-hidden">
+        <div className="fixed inset-0 z-[70] bg-black/40 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl border border-gray-200 w-full max-w-md max-h-[90vh] overflow-y-auto">
             <div className="px-6 py-4 border-b border-gray-200">
               <h3 className="text-lg font-semibold text-gray-800">
                 Approve Leave Request
@@ -1109,8 +1116,8 @@ const Leave = () => {
       )}
 
       {showRejectModal && (
-        <div className="fixed inset-0 z-[70] overflow-y-auto bg-black/40 flex items-center justify-center p-4">
-          <div className="bg-white rounded-md border border-gray-200 w-full max-w-md overflow-hidden">
+        <div className="fixed inset-0 z-[70] bg-black/40 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl border border-gray-200 w-full max-w-md max-h-[90vh] overflow-y-auto">
             <div className="px-6 py-4 border-b border-gray-200">
               <h3 className="text-lg font-semibold text-gray-800">
                 Reject Leave Request

@@ -38,6 +38,17 @@ const leaveSchema = new Schema(
       min: 0.5, // half-day leave support ke liye
     },
 
+    isHalfDay: {
+      type: Boolean,
+      default: false,
+    },
+
+    halfDaySession: {
+      type: String,
+      enum: ["First Half", "Second Half", null],
+      default: null,
+    },
+
     reason: {
       type: String,
       required: true,

@@ -14,6 +14,7 @@ import {
   deleteAttendance,
   getAllUsers, // <-- NAYA IMPORT: apne service file me is naam ka function check/add kar lena
 } from "../services/auth.service";
+import Pagination from "../component/Pagination";
 
 const getTodayDateString = () => {
   const d = new Date();
@@ -159,32 +160,6 @@ const STATUS_OPTIONS = [
   "Work From Home",
 ];
 
-const Pagination = ({ totalItems, itemsPerPage, currentPage, setCurrentPage }) => {
-  const totalPages = Math.ceil(totalItems / itemsPerPage);
-  if (totalPages <= 1) return null;
-
-  return (
-    <div className="flex items-center justify-center gap-2">
-      <button
-        onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-        disabled={currentPage === 1}
-        className="px-3 py-1 text-sm font-medium rounded-md bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        Previous
-      </button>
-      <span className="text-sm text-gray-600 font-medium">
-        Page {currentPage} of {totalPages}
-      </span>
-      <button
-        onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-        disabled={currentPage === totalPages}
-        className="px-3 py-1 text-sm font-medium rounded-md bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        Next
-      </button>
-    </div>
-  );
-};
 
 const AttendancePage = () => {
   const { user } = useContext(AuthContext);
@@ -246,9 +221,9 @@ const AttendancePage = () => {
       const res = await getMyAttendance(empId);
       const data = res.data.attendance || [];
       data.sort((a, b) => {
-        if (a.createdAt && b.createdAt) return new Date(b.createdAt) - new Date(a.createdAt);
-        if (a._id && b._id) return b._id.toString().localeCompare(a._id.toString());
-        return new Date(b.date || 0) - new Date(a.date || 0);
+        const dateA = getLocalYYYYMMDD(a.date);
+        const dateB = getLocalYYYYMMDD(b.date);
+        return dateB.localeCompare(dateA); // latest date first
       });
       setMyRecords(data);
     } catch (err) {
@@ -263,13 +238,11 @@ const AttendancePage = () => {
     try {
       const res = await getAllAttendance();
       const data = res.data.attendance || [];
-      // Default sort: alphabetical by employee name (A-Z)
+      // Default sort: date-wise (latest first)
       data.sort((a, b) => {
-        const nameA = getEmployeeDisplayName(a.employee, []).toLowerCase();
-        const nameB = getEmployeeDisplayName(b.employee, []).toLowerCase();
-        if (nameA < nameB) return -1;
-        if (nameA > nameB) return 1;
-        return getLocalYYYYMMDD(b.date).localeCompare(getLocalYYYYMMDD(a.date));
+        const dateA = getLocalYYYYMMDD(a.date);
+        const dateB = getLocalYYYYMMDD(b.date);
+        return dateB.localeCompare(dateA);
       });
       setAllRecords(data);
     } catch (err) {
@@ -595,6 +568,7 @@ const AttendancePage = () => {
           present: 0,
           absent: 0,
           late: 0,
+          halfDay: 0,
           latestDate: null,
         });
       }
@@ -602,6 +576,7 @@ const AttendancePage = () => {
       entry.total += 1;
       if (r.attendanceStatus === "Present") entry.present += 1;
       if (r.attendanceStatus === "Absent") entry.absent += 1;
+      if (r.attendanceStatus === "Half Day") entry.halfDay += 1;
       const isLate = r.isLate ?? isCheckInLate(r.checkInTime);
       if (isLate) entry.late += 1;
       const localDate = getLocalYYYYMMDD(r.date);
@@ -612,11 +587,10 @@ const AttendancePage = () => {
     });
 
     const summaries = Array.from(map.values());
-    // Sort alphabetically by employee name A-Z
+    // Sort by most recent attendance date (latest first)
     summaries.sort((a, b) => {
-      const nameA = getEmployeeDisplayName(a.empObj, employees).toLowerCase();
-      const nameB = getEmployeeDisplayName(b.empObj, employees).toLowerCase();
-      return nameA.localeCompare(nameB);
+      if (b.latestDate && a.latestDate) return b.latestDate.localeCompare(a.latestDate);
+      return 0;
     });
     return summaries;
   }, [visibleAdminRecords, employees]);
@@ -1614,7 +1588,7 @@ const AttendancePage = () => {
         {/* ================= ADMIN: DELETE CONFIRMATION MODAL ================= */}
         {isAdmin && deleteTarget && (
           <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-            <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="bg-white rounded-2xl p-4 sm:p-6 w-full max-w-sm max-h-[90vh] overflow-y-auto shadow-2xl animate-in zoom-in-95 duration-200">
               <div className="w-12 h-12 rounded-full bg-rose-100 flex items-center justify-center mb-4 text-rose-600">
                 <svg
                   className="w-6 h-6"
@@ -1809,6 +1783,12 @@ const AttendancePage = () => {
                           <span className="inline-flex items-center gap-1 text-xs font-semibold text-rose-700 bg-rose-50 px-2.5 py-1 rounded-md ring-1 ring-inset ring-rose-600/10">
                             <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
                             {s.absent} Absent
+                          </span>
+                        )}
+                        {s.halfDay > 0 && (
+                          <span className="inline-flex items-center gap-1 text-xs font-semibold text-yellow-700 bg-yellow-50 px-2.5 py-1 rounded-md ring-1 ring-inset ring-yellow-600/10">
+                            <span className="w-1.5 h-1.5 rounded-full bg-yellow-500"></span>
+                            {s.halfDay} Half Day
                           </span>
                         )}
                       </div>

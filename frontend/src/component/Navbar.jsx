@@ -115,6 +115,30 @@ function Navbar() {
     }
   };
 
+  const handleNotificationClick = async (n) => {
+    if (!n.isRead) {
+      await markOneRead(n._id);
+    }
+    setNotifOpen(false);
+
+    switch (n.type) {
+      case "LEAVE_APPLIED":
+      case "LEAVE_APPROVED":
+      case "LEAVE_REJECTED":
+      case "LEAVE_CANCELLED":
+        navigate("/leave");
+        break;
+      case "HOLIDAY_CREATED":
+        navigate("/holiday");
+        break;
+      case "ANNOUNCEMENT_CREATED":
+        navigate("/announcement");
+        break;
+      default:
+        break;
+    }
+  };
+
   const clearAll = async () => {
     try {
       await clearAllNotifications();
@@ -203,7 +227,7 @@ function Navbar() {
                   className="fixed inset-0 z-10"
                   onClick={() => setNotifOpen(false)}
                 />
-                <div className="absolute right-0 mt-2 w-96 max-w-[90vw] bg-white rounded-xl shadow-2xl border border-gray-100 z-20 overflow-hidden">
+                <div className="absolute right-0 mt-2 w-96 max-w-[90vw] bg-white rounded-xl shadow-2xl border border-gray-100 z-20 overflow-hidden dropdown-menu">
                   <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-indigo-50 to-purple-50 border-b border-gray-100">
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-semibold text-gray-800">
@@ -255,7 +279,7 @@ function Navbar() {
                       notifications.map((n) => (
                         <button
                           key={n._id}
-                          onClick={() => !n.isRead && markOneRead(n._id)}
+                          onClick={() => handleNotificationClick(n)}
                           className={`w-full text-left px-4 py-3 flex gap-3 items-start hover:bg-gray-50 transition border-b border-gray-50 last:border-b-0 ${
                             !n.isRead ? "bg-indigo-50/60" : ""
                           }`}
@@ -331,7 +355,7 @@ function Navbar() {
                   className="fixed inset-0 z-10"
                   onClick={() => setProfileOpen(false)}
                 />
-                <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg border border-gray-100 py-2 z-20">
+                <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg border border-gray-100 py-2 z-20 dropdown-menu">
                   <div className="px-4 py-2 border-b border-gray-100">
                     <p className="text-sm font-medium text-gray-800 truncate">
                       {user?.firstName} {user?.lastName}

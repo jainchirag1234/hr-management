@@ -9,6 +9,7 @@ import {
   CalendarDays,
   LogOut,
   Megaphone,
+  ChevronRight,
 } from "lucide-react";
 import { useContext, useState } from "react";
 import { createPortal } from "react-dom";
@@ -53,42 +54,78 @@ export default function Sidebar({ role, activeKey, onSelect }) {
   };
 
   return (
-    <aside className="w-full h-full bg-white border-r border-gray-200 flex flex-col gap-1 p-3">
-      <nav className="flex flex-col gap-1 flex-1 overflow-y-auto pr-1">
-        {items.map(({ key, label, icon: Icon }) => {
+    <aside className="w-full h-full bg-white border-r border-gray-200 flex flex-col">
+      {/* Brand / User area */}
+      <div className="px-4 py-5 border-b border-gray-100">
+        <div className="flex items-center gap-3">
+          <div className="min-w-0"></div>
+        </div>
+      </div>
+
+      <nav className="flex flex-col gap-0.5 flex-1 overflow-y-auto p-3">
+        {items.map(({ key, label, icon: Icon }, idx) => {
           const isActive = activeKey === key;
           return (
             <button
               key={key}
               onClick={() => onSelect(key)}
-              className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm text-left transition-colors
+              className={`sidebar-link flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-[14px] text-left transition-all duration-200 group
                 ${
                   isActive
-                    ? "bg-indigo-50 text-indigo-600 font-medium"
-                    : "text-gray-700 hover:bg-gray-100"
+                    ? "active bg-blue-600 text-white shadow-md shadow-blue-500/30"
+                    : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                 }`}
+              style={{ animationDelay: `${idx * 30}ms` }}
             >
-              <Icon size={18} />
-              <span>{label}</span>
+              <span
+                className={`flex-shrink-0 transition-transform duration-200 ${isActive ? "" : "group-hover:scale-110"}`}
+              >
+                <Icon
+                  size={18}
+                  className={
+                    isActive
+                      ? "text-white"
+                      : "text-slate-400 group-hover:text-blue-600"
+                  }
+                  strokeWidth={isActive ? 2.5 : 2}
+                />
+              </span>
+              <span
+                className={`flex-1 font-medium ${isActive ? "text-white" : ""}`}
+              >
+                {label}
+              </span>
+              {isActive && (
+                <ChevronRight
+                  size={14}
+                  className="text-white/70 flex-shrink-0"
+                />
+              )}
             </button>
           );
         })}
       </nav>
 
-      <div className="mt-auto border-t border-gray-100 pt-3">
+      {/* Logout */}
+      <div className="p-3 border-t border-slate-100">
         <button
           onClick={handleLogout}
-          className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm text-left text-red-600 hover:bg-red-50 transition-colors"
+          className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-[14px] text-left text-red-600 hover:bg-red-50 hover:text-red-700 transition-all duration-200 group"
         >
-          <LogOut size={18} />
+          <LogOut
+            size={18}
+            className="text-red-400 group-hover:text-red-600 transition-colors"
+            strokeWidth={2}
+          />
           <span className="font-medium">Logout</span>
         </button>
       </div>
 
+      {/* Logout Confirmation Modal */}
       {showLogoutConfirm &&
         createPortal(
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center px-4 z-[100]">
-            <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 animate-fade-in">
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center px-4 z-[100] modal-backdrop">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 modal-content">
               <div className="flex items-center justify-center w-14 h-14 rounded-full bg-red-100 mx-auto mb-4">
                 <LogOut className="h-7 w-7 text-red-600" />
               </div>

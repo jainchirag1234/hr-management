@@ -15,6 +15,8 @@ import announcementRoutes from "./routes/announcement.routes.js";
 import notificationRoutes from "./routes/notification.routes.js";
 import http from "http";
 import { initSocket } from "./utils/socket.js";
+import salaryStructureRoutes from "./routes/salaryStructure.routes.js";
+import payrollRoutes from "./routes/payroll.routes.js";
 
 const app = express();
 const server = http.createServer(app);
@@ -46,7 +48,8 @@ app.use("/api/leaves", leaveRoutes);
 app.use("/api/holidays", holidayRoutes);
 app.use("/api/notification", notificationRoutes);
 app.use("/api/announcements", announcementRoutes);
-
+app.use("/api/salary", salaryStructureRoutes);
+app.use("/api/payroll", payrollRoutes);
 const PORT = process.env.PORT || 5000;
 
 server.listen(PORT, () => {

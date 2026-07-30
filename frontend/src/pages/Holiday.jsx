@@ -153,7 +153,7 @@ function Holiday() {
 
   return (
     <div className="min-h-screen w-full bg-gray-50 flex flex-col">
-      <main className="flex-1 px-4 sm:px-6 py-6 sm:py-8 max-w-6xl mx-auto w-full">
+      <main className="flex-1 px-4 sm:px-6 py-6 sm:py-8 max-w-6xl mx-auto w-full page-enter">
       {error && (
         <div className="mb-6 bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-lg flex items-center justify-between">
           <span>{error}</span>
@@ -167,79 +167,85 @@ function Holiday() {
       )}
 
       {/* Stat cards */}
-      {/* Stat cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-5 mb-8">
-        <div className="relative overflow-hidden bg-gradient-to-br from-indigo-50 to-fuchsia-50 rounded-xl border border-indigo-100 p-5">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-indigo-600/70 text-sm font-medium">
-                Total Holidays
-              </p>
-              <p className="text-3xl font-bold text-indigo-700 mt-1">
-                {holidays.length || 0}
-              </p>
-            </div>
-            <div className="w-11 h-11 rounded-full bg-indigo-100 flex items-center justify-center shrink-0">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-5 w-5 text-indigo-600"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                />
-              </svg>
-            </div>
-          </div>
-          <div className="absolute -right-4 -bottom-4 w-20 h-20 bg-indigo-100/40 rounded-full" />
-        </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        {stats.map((s, index) => {
+          const themes = [
+            {
+              bg: "from-blue-50 to-cyan-50",
+              border: "border-blue-100",
+              label: "text-blue-600/70",
+              value: "text-blue-700",
+              iconBg: "bg-blue-100",
+              iconColor: "text-blue-600",
+              blob: "bg-blue-100/40",
+            },
+            {
+              bg: "from-emerald-50 to-teal-50",
+              border: "border-emerald-100",
+              label: "text-emerald-600/70",
+              value: "text-emerald-700",
+              iconBg: "bg-emerald-100",
+              iconColor: "text-emerald-600",
+              blob: "bg-emerald-100/40",
+            },
+          ];
+          const theme = themes[index % themes.length];
 
-        <div className="relative overflow-hidden bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl border border-emerald-100 p-5">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-emerald-600/70 text-sm font-medium">
-                Upcoming
-              </p>
-              <p className="text-3xl font-bold text-emerald-700 mt-1">
-                {upcomingHolidays.length || 0}
-              </p>
+          return (
+            <div
+              key={s.label}
+              className={`stat-card interactive-card relative overflow-hidden bg-gradient-to-br ${theme.bg} rounded-xl border ${theme.border} px-5 py-7 flex flex-col justify-center`}
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className={`${theme.label} text-sm font-medium`}>
+                    {s.label}
+                  </p>
+                  <p className={`text-3xl font-bold ${theme.value} mt-1`}>
+                    {s.value}
+                  </p>
+                </div>
+                <div
+                  className={`w-11 h-11 rounded-full ${theme.iconBg} flex items-center justify-center shrink-0`}
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className={`h-5 w-5 ${theme.iconColor}`}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d={
+                        index === 0
+                          ? "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                          : "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                      }
+                    />
+                  </svg>
+                </div>
+              </div>
+              <div
+                className={`absolute -right-4 -bottom-4 w-20 h-20 ${theme.blob} rounded-full`}
+              />
             </div>
-            <div className="w-11 h-11 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-5 w-5 text-emerald-600"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
-            </div>
-          </div>
-          <div className="absolute -right-4 -bottom-4 w-20 h-20 bg-emerald-100/40 rounded-full" />
-        </div>
+          );
+        })}
       </div>
 
       {/* Holidays card */}
       <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-        <div className="px-4 sm:px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+        <div className="px-4 sm:px-6 py-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <h2 className="text-xl font-bold text-gray-800">
             {isAdmin ? "Holidays" : "Upcoming Holidays"}
           </h2>
           {isAdmin && (
             <button
               onClick={openAddForm}
-              className="text-sm font-medium text-white px-4 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 transition shrink-0"
+              className="text-sm font-medium text-white px-4 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 transition shrink-0 w-full sm:w-auto"
             >
               + Add Holiday
             </button>
@@ -247,80 +253,156 @@ function Holiday() {
         </div>
 
         {loading ? (
-          <div className="px-6 py-10 text-center text-gray-400 text-sm">
-            Loading...
+          <div className="overflow-hidden">
+            {[1,2,3,4,5].map((i) => (
+              <div key={i} className="skeleton skeleton-row" />
+            ))}
           </div>
         ) : rows.length === 0 ? (
           <div className="px-6 py-10 text-center text-gray-400 text-sm">
             No holidays found.
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-blue-600 text-left text-white">
-                  <th className="px-6 py-3 font-medium">Name</th>
-                  <th className="px-6 py-3 font-medium">Date</th>
-                  <th className="px-6 py-3 font-medium">Description</th>
-                  <th className="px-6 py-3 font-medium">Type</th>
-                  {isAdmin && (
-                    <th className="px-6 py-3 font-medium text-right">
-                      Actions
-                    </th>
-                  )}
-                </tr>
-              </thead>
-              <tbody>
+          <>
+            {/* Mobile View */}
+            <div className="block lg:hidden p-4">
+              <div className="flex flex-col gap-4">
                 {rows.map((holiday) => (
-                  <tr
+                  <div
                     key={holiday._id}
-                    className="border-t border-gray-100 hover:bg-gray-50 transition"
+                    className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex flex-col gap-3 relative overflow-hidden"
                   >
-                    <td className="px-6 py-3 text-gray-800 font-medium">
-                      {holiday.name}
-                    </td>
-                    <td className="px-6 py-3 text-gray-600">
-                      {formatDate(holiday.date)}
-                    </td>
-                    <td className="px-6 py-3 text-gray-600">
+                    {/* Left accent border */}
+                    <div className={`absolute left-0 top-0 bottom-0 w-1 ${
+                      holiday.type === "National" ? "bg-red-500" :
+                      holiday.type === "Optional" ? "bg-blue-500" :
+                      "bg-gray-300"
+                    }`} />
+                    
+                    <div className="flex justify-between items-start gap-2 pl-2">
+                      <h3 className="font-bold text-gray-800">{holiday.name}</h3>
+                      <span
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider shrink-0 ${
+                          holiday.type === "National" ? "bg-red-50 text-red-600" :
+                          holiday.type === "Optional" ? "bg-blue-50 text-blue-600" :
+                          "bg-gray-100 text-gray-600"
+                        }`}
+                      >
+                        {holiday.type || "National"}
+                      </span>
+                    </div>
+
+                    <p className="text-sm text-gray-600 pl-2">
                       {holiday.Description || "--"}
-                    </td>
-                    <td className="px-6 py-3 text-gray-600">
-                      {holiday.type || "--"}
-                    </td>
+                    </p>
+
+                    <div className="flex justify-between items-center text-sm bg-gray-50 p-3 rounded-lg mt-1 ml-2 border border-gray-100">
+                      <div>
+                        <span className="text-gray-400 block text-[10px] uppercase tracking-wider font-semibold mb-1">Date</span>
+                        <span className="font-medium text-gray-700">
+                          {formatDate(holiday.date)}
+                        </span>
+                      </div>
+                    </div>
+
                     {isAdmin && (
-                      <td className="px-6 py-3 text-right space-x-3">
+                      <div className="flex gap-2 mt-1 ml-2">
                         <button
                           onClick={() => handleEdit(holiday)}
-                          className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                          className="flex-1 py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-sm font-medium transition"
                         >
                           Edit
                         </button>
                         <button
                           onClick={() => setDeleteConfirm({ holiday })}
                           disabled={deletingId === holiday._id}
-                          className="text-red-500 hover:text-red-700 text-sm font-medium disabled:opacity-50"
+                          className="flex-1 py-2 bg-red-50 text-red-700 hover:bg-red-100 rounded-lg text-sm font-medium transition disabled:opacity-50"
                         >
-                          {deletingId === holiday._id
-                            ? "Deleting..."
-                            : "Delete"}
+                          {deletingId === holiday._id ? "Deleting..." : "Delete"}
                         </button>
-                      </td>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Desktop View */}
+            <div className="hidden lg:block overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-blue-600 text-left text-white">
+                    <th className="px-6 py-3 font-medium">Name</th>
+                    <th className="px-6 py-3 font-medium">Date</th>
+                    <th className="px-6 py-3 font-medium">Description</th>
+                    <th className="px-6 py-3 font-medium">Type</th>
+                    {isAdmin && (
+                      <th className="px-6 py-3 font-medium text-right">
+                        Actions
+                      </th>
                     )}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="table-zebra">
+                  {rows.map((holiday) => (
+                    <tr
+                      key={holiday._id}
+                      className="border-t border-gray-100 hover:bg-gray-50 transition"
+                    >
+                      <td className="px-6 py-3 text-gray-800 font-medium">
+                        {holiday.name}
+                      </td>
+                      <td className="px-6 py-3 text-gray-600">
+                        {formatDate(holiday.date)}
+                      </td>
+                      <td className="px-6 py-3 text-gray-600">
+                        {holiday.Description || "--"}
+                      </td>
+                      <td className="px-6 py-3">
+                        <span
+                          className={`px-2.5 py-1 rounded-full text-xs font-medium ${
+                            holiday.type === "National" ? "bg-red-50 text-red-600" :
+                            holiday.type === "Optional" ? "bg-blue-50 text-blue-600" :
+                            "bg-gray-100 text-gray-600"
+                          }`}
+                        >
+                          {holiday.type || "--"}
+                        </span>
+                      </td>
+                      {isAdmin && (
+                        <td className="px-6 py-3 text-right space-x-3">
+                          <button
+                            onClick={() => handleEdit(holiday)}
+                            className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => setDeleteConfirm({ holiday })}
+                            disabled={deletingId === holiday._id}
+                            className="text-red-500 hover:text-red-700 text-sm font-medium disabled:opacity-50"
+                          >
+                            {deletingId === holiday._id
+                              ? "Deleting..."
+                              : "Delete"}
+                          </button>
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
       </main>
 
       {/* Add / Edit modal - admin only */}
       {isAdmin && showForm && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center px-4 z-50">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
-            <div className="flex items-center justify-between mb-5 bg-blue-50 p-6 -mx-6 -mt-6 rounded-t-2xl border-b border-blue-100">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50 modal-backdrop">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-4 sm:p-6 max-h-[90vh] overflow-y-auto modal-content">
+            <div className="flex items-center justify-between mb-5 bg-blue-50 p-4 sm:p-6 -mx-4 sm:-mx-6 -mt-4 sm:-mt-6 rounded-t-2xl border-b border-blue-100">
               <h3 className="text-xl font-bold text-blue-800">
                 {editingId ? "Edit Holiday" : "Add Holiday"}
               </h3>
@@ -417,8 +499,8 @@ function Holiday() {
 
       {/* Delete confirmation modal */}
       {deleteConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center px-4 z-50">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 modal-backdrop">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-4 sm:p-6 max-h-[90vh] overflow-y-auto modal-content">
             <div className="flex items-center justify-center w-14 h-14 rounded-full bg-red-100 mx-auto mb-4">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -443,7 +525,8 @@ function Holiday() {
               Are you sure you want to delete{" "}
               <span className="font-semibold text-gray-700">
                 {deleteConfirm.holiday.name}
-              </span>?
+              </span>
+              ?
             </p>
 
             <div className="flex gap-3 mt-6">
@@ -484,7 +567,7 @@ function Holiday() {
                     Deleting...
                   </>
                 ) : (
-                  " Delete"
+                  "Delete"
                 )}
               </button>
             </div>

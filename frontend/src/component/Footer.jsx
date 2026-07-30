@@ -21,95 +21,97 @@ function Footer() {
               to help teams work smarter, faster, and better.
             </p>
           </div>
+          {/* Links and Features Container */}
+          <div className="grid grid-cols-2 gap-8 sm:col-span-2 sm:gap-10">
+            {/* Quick Links */}
+            <div>
+              <h4 className="text-gray-700 font-semibold text-sm mb-4 uppercase tracking-widest">
+                Quick Links
+              </h4>
+              <ul className="space-y-2.5 text-sm text-gray-500">
+                <li>
+                  <Link
+                    to="/dashboard"
+                    className="hover:text-blue-700 transition-colors duration-200 flex items-center gap-2"
+                  >
+                    Dashboard
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/employee"
+                    className="hover:text-blue-700 transition-colors duration-200 flex items-center gap-2"
+                  >
+                    Employees
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/attendance"
+                    className="hover:text-blue-700 transition-colors duration-200 flex items-center gap-2"
+                  >
+                    Attendance
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/leave"
+                    className="hover:text-blue-700 transition-colors duration-200 flex items-center gap-2"
+                  >
+                    Leave Management
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/department"
+                    className="hover:text-blue-700 transition-colors duration-200 flex items-center gap-2"
+                  >
+                    Departments
+                  </Link>
+                </li>
+              </ul>
+            </div>
 
-          {/* Quick Links */}
-          <div>
-            <h4 className="text-gray-700 font-semibold text-sm mb-4 uppercase tracking-widest">
-              Quick Links
-            </h4>
-            <ul className="space-y-2.5 text-sm text-gray-500">
-              <li>
-                <Link
-                  to="/dashboard"
-                  className="hover:text-blue-700 transition-colors duration-200 flex items-center gap-2"
-                >
-                  Dashboard
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/employee"
-                  className="hover:text-blue-700 transition-colors duration-200 flex items-center gap-2"
-                >
-                  Employees
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/attendance"
-                  className="hover:text-blue-700 transition-colors duration-200 flex items-center gap-2"
-                >
-                  Attendance
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/leave"
-                  className="hover:text-blue-700 transition-colors duration-200 flex items-center gap-2"
-                >
-                  Leave Management
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/department"
-                  className="hover:text-blue-700 transition-colors duration-200 flex items-center gap-2"
-                >
-                  Departments
-                </Link>
-              </li>
-            </ul>
-          </div>
-
-          {/* Features */}
-          <div>
-            <h4 className="text-gray-700 font-semibold text-sm mb-4 uppercase tracking-widest">
-              Features
-            </h4>
-            <ul className="space-y-2.5 text-sm text-gray-500">
-              <li>
-                <Link
-                  to="/announcement"
-                  className="hover:text-blue-700 transition-colors duration-200 flex items-center gap-2"
-                >
-                  Announcements
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/holiday"
-                  className="hover:text-blue-700 transition-colors duration-200 flex items-center gap-2"
-                >
-                  Holiday
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/designation"
-                  className="hover:text-blue-700 transition-colors duration-200 flex items-center gap-2"
-                >
-                  Designations
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/profile"
-                  className="hover:text-blue-700 transition-colors duration-200 flex items-center gap-2"
-                >
-                  My Profile
-                </Link>
-              </li>
-            </ul>
+            {/* Features */}
+            <div>
+              <h4 className="text-gray-700 font-semibold text-sm mb-4 uppercase tracking-widest">
+                Features
+              </h4>
+              <ul className="space-y-2.5 text-sm text-gray-500">
+                <li>
+                  <Link
+                    to="/announcement"
+                    className="hover:text-blue-700 transition-colors duration-200 flex items-center gap-2"
+                  >
+                    Announcements
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/holiday"
+                    className="hover:text-blue-700 transition-colors duration-200 flex items-center gap-2"
+                  >
+                    Holiday
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/designation"
+                    className="hover:text-blue-700 transition-colors duration-200 flex items-center gap-2"
+                  >
+                    Designations
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/profile"
+                    className="hover:text-blue-700 transition-colors duration-200 flex items-center gap-2"
+                  >
+                    My Profile
+                  </Link>
+                </li>
+              </ul>
+            </div>
           </div>
         </div>
       </div>

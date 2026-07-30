@@ -147,7 +147,7 @@ const Department = () => {
 
   return (
     <div className="w-full bg-gray-50">
-      <main className="flex-1 px-4 sm:px-6 py-6 sm:py-8 max-w-6xl mx-auto w-full">
+      <main className="flex-1 px-4 sm:px-6 py-6 sm:py-8 max-w-6xl mx-auto w-full page-enter">
         {error && (
           <div className="mb-6 bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-lg flex items-center justify-between">
             <span>{error}</span>
@@ -161,11 +161,11 @@ const Department = () => {
         )}
 
         {/* Stat cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-8">
-          {stats.map((s) => (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          {stats.map((s, i) => (
             <div
               key={s.label}
-              className="bg-white rounded-xl shadow-sm border border-gray-100 p-5"
+              className="stat-card interactive-card bg-gradient-to-br from-blue-50 to-white rounded-xl shadow-md shadow-blue-500/10 border border-blue-100 px-5 py-7 flex flex-col justify-center hover:shadow-lg hover:shadow-blue-500/20"
             >
               <p className="text-gray-500 text-sm">{s.label}</p>
               <p className={`text-3xl font-bold mt-1 ${s.colorClass}`}>
@@ -176,7 +176,7 @@ const Department = () => {
         </div>
 
         {/* Table card */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="bg-white rounded-xl shadow-md shadow-blue-500/10 border border-blue-100 overflow-hidden">
           <div className="px-4 sm:px-6 py-4 border-b border-gray-100 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-gray-800">Departments</h2>
             <button
@@ -188,8 +188,10 @@ const Department = () => {
           </div>
 
           {loading ? (
-            <div className="px-6 py-10 text-center text-gray-400 text-sm">
-              Loading...
+            <div className="overflow-hidden">
+              {[1,2,3,4,5].map((i) => (
+                <div key={i} className="skeleton skeleton-row" />
+              ))}
             </div>
           ) : departments.length === 0 ? (
             <div className="px-6 py-10 text-center text-gray-400 text-sm">
@@ -262,7 +264,7 @@ const Department = () => {
                       </th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="table-zebra">
                     {departments.map((dept) => (
                       <tr
                         key={dept._id}
@@ -320,8 +322,8 @@ const Department = () => {
 
       {/* Add / Edit modal */}
       {showForm && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center px-4 z-50">
-          <div className="bg-white rounded-xl shadow-lg w-full max-w-md p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50 modal-backdrop">
+          <div className="bg-white rounded-xl shadow-lg w-full max-w-md p-4 sm:p-6 max-h-[90vh] overflow-y-auto modal-content">
             <div className="flex items-center justify-between mb-5 bg-sky-50 p-4 sm:px-6 sm:py-5 -mx-4 sm:-mx-6 -mt-4 sm:-mt-6 rounded-t-xl border-b border-sky-100">
               <h3 className="text-xl font-bold text-sky-800">
                 {editingId ? "Edit Department" : "Add Department"}
@@ -439,8 +441,8 @@ const Department = () => {
 
       {/* Delete confirmation modal */}
       {deleteConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center px-4 z-50">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 modal-backdrop">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-4 sm:p-6 max-h-[90vh] overflow-y-auto modal-content">
             <div className="flex items-center justify-center w-14 h-14 rounded-full bg-red-100 mx-auto mb-4">
               <svg
                 xmlns="http://www.w3.org/2000/svg"

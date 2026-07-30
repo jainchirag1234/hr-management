@@ -21,7 +21,8 @@ const VALID_LEAVE_TYPES = [
 // (simple version — weekends/holidays are not excluded,
 // add that logic here if needed)
 // ---------------------------------------------------
-const calculateLeaveDays = (startDate, endDate) => {
+const calculateLeaveDays = (startDate, endDate, isHalfDay = false) => {
+  if (isHalfDay) return 0.5; // Half-day is always 0.5 days
   const start = new Date(startDate);
   const end = new Date(endDate);
   const diffTime = Math.abs(end - start);
@@ -36,7 +37,7 @@ const calculateLeaveDays = (startDate, endDate) => {
 // ---------------------------------------------------
 export const applyLeave = async (req, res) => {
   try {
-    const { leaveType, startDate, endDate, reason } = req.body;
+    const { leaveType, startDate, endDate, reason, isHalfDay, halfDaySession } = req.body;
 
     if (!leaveType || !startDate || !endDate || !reason) {
       return res.status(400).json({
@@ -59,7 +60,25 @@ export const applyLeave = async (req, res) => {
       });
     }
 
-    const totalLeaveDays = calculateLeaveDays(startDate, endDate);
+    // Half-day validation: startDate and endDate must be the same
+    if (isHalfDay) {
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      if (start.toDateString() !== end.toDateString()) {
+        return res.status(400).json({
+          success: false,
+          message: "Half-day leave must have the same start and end date",
+        });
+      }
+      if (!halfDaySession || !["First Half", "Second Half"].includes(halfDaySession)) {
+        return res.status(400).json({
+          success: false,
+          message: "halfDaySession must be 'First Half' or 'Second Half' for half-day leave",
+        });
+      }
+    }
+
+    const totalLeaveDays = calculateLeaveDays(startDate, endDate, !!isHalfDay);
 
     const leave = await Leave.create({
       employee: req.user._id, // should come from auth middleware
@@ -68,6 +87,8 @@ export const applyLeave = async (req, res) => {
       endDate,
       totalLeaveDays,
       reason,
+      isHalfDay: !!isHalfDay,
+      halfDaySession: isHalfDay ? halfDaySession : null,
       status: "Pending",
     });
 
@@ -75,10 +96,10 @@ export const applyLeave = async (req, res) => {
       "firstName lastName email",
     );
 
-    // ---- Email notification to admins ----
+    // ---- Email notification to admins (Async) ----
     const adminEmails = admins.map((a) => a.email).filter(Boolean);
     if (adminEmails.length > 0) {
-      await sendEmail({
+      sendEmail({
         to: adminEmails.join(","),
         subject: `New Leave Request - ${req.user.firstName} ${req.user.lastName}`,
         html: `
@@ -92,20 +113,18 @@ export const applyLeave = async (req, res) => {
       });
     }
 
-    // ---- In-app notification to admins ----
-    await Promise.all(
-      admins.map((admin) =>
-        createNotification({
-          recipient: admin._id,
-          recipientRole: "admin",
-          sender: req.user._id,
-          type: "LEAVE_APPLIED",
-          message: `${req.user.firstName} ${req.user.lastName} has applied for ${leaveType} leave from (${new Date(
-            startDate,
-          ).toLocaleDateString()} - ${new Date(endDate).toLocaleDateString()}). Status: Pending`,
-          relatedLeave: leave._id,
-        }),
-      ),
+    // ---- In-app notification to admins (Async) ----
+    admins.forEach((admin) =>
+      createNotification({
+        recipient: admin._id,
+        recipientRole: "admin",
+        sender: req.user._id,
+        type: "LEAVE_APPLIED",
+        message: `${req.user.firstName} ${req.user.lastName} has applied for ${leaveType} leave from (${new Date(
+          startDate,
+        ).toLocaleDateString()} - ${new Date(endDate).toLocaleDateString()}). Status: Pending`,
+        relatedLeave: leave._id,
+      })
     );
 
     return res.status(201).json({
@@ -246,7 +265,7 @@ export const updateLeave = async (req, res) => {
       });
     }
 
-    const { leaveType, startDate, endDate, reason } = req.body;
+    const { leaveType, startDate, endDate, reason, isHalfDay, halfDaySession } = req.body;
 
     if (leaveType && !VALID_LEAVE_TYPES.includes(leaveType)) {
       return res.status(400).json({
@@ -262,15 +281,41 @@ export const updateLeave = async (req, res) => {
       });
     }
 
+    const effectiveIsHalfDay = isHalfDay !== undefined ? !!isHalfDay : leave.isHalfDay;
+
+    // Half-day validation on update
+    if (effectiveIsHalfDay) {
+      const sd = startDate || leave.startDate;
+      const ed = endDate || leave.endDate;
+      if (new Date(sd).toDateString() !== new Date(ed).toDateString()) {
+        return res.status(400).json({
+          success: false,
+          message: "Half-day leave must have the same start and end date",
+        });
+      }
+      const effectiveSession = halfDaySession !== undefined ? halfDaySession : leave.halfDaySession;
+      if (!effectiveSession || !["First Half", "Second Half"].includes(effectiveSession)) {
+        return res.status(400).json({
+          success: false,
+          message: "halfDaySession must be 'First Half' or 'Second Half'",
+        });
+      }
+      leave.halfDaySession = effectiveSession;
+    } else {
+      leave.halfDaySession = null;
+    }
+
     if (leaveType) leave.leaveType = leaveType;
     if (startDate) leave.startDate = startDate;
     if (endDate) leave.endDate = endDate;
     if (reason) leave.reason = reason;
+    if (isHalfDay !== undefined) leave.isHalfDay = !!isHalfDay;
 
-    if (startDate || endDate) {
+    if (startDate || endDate || isHalfDay !== undefined) {
       leave.totalLeaveDays = calculateLeaveDays(
         startDate || leave.startDate,
         endDate || leave.endDate,
+        effectiveIsHalfDay,
       );
     }
 
@@ -325,8 +370,8 @@ export const approveLeave = async (req, res) => {
 
     await leave.save();
 
-    // ---- Email notification to employee ----
-    await sendEmail({
+    // ---- Email notification to employee (Async) ----
+    sendEmail({
       to: leave.employee.email,
       subject: "Your leave has been approved.",
       html: `
@@ -342,8 +387,8 @@ export const approveLeave = async (req, res) => {
       `,
     });
 
-    // ---- In-app notification to employee ----
-    await createNotification({
+    // ---- In-app notification to employee (Async) ----
+    createNotification({
       recipient: leave.employee._id,
       recipientRole: "user",
       sender: req.user._id,
@@ -401,8 +446,8 @@ export const rejectLeave = async (req, res) => {
 
     await leave.save();
 
-    // ---- Email notification to employee ----
-    await sendEmail({
+    // ---- Email notification to employee (Async) ----
+    sendEmail({
       to: leave.employee.email,
       subject: "Your leave request has been rejected",
       html: `
@@ -414,8 +459,8 @@ export const rejectLeave = async (req, res) => {
       `,
     });
 
-    // ---- In-app notification to employee ----
-    await createNotification({
+    // ---- In-app notification to employee (Async) ----
+    createNotification({
       recipient: leave.employee._id,
       recipientRole: "user",
       sender: req.user._id,
@@ -473,19 +518,17 @@ export const cancelLeave = async (req, res) => {
     leave.status = "Cancelled";
     await leave.save();
 
-    // ---- In-app notification to admins ----
+    // ---- In-app notification to admins (Async) ----
     const admins = await User.find({ role: "Admin" }).select("_id");
-    await Promise.all(
-      admins.map((admin) =>
-        createNotification({
-          recipient: admin._id,
-          recipientRole: "admin",
-          sender: req.user._id,
-          type: "LEAVE_CANCELLED",
-          message: `${req.user.firstName} ${req.user.lastName} has cancelled their ${leave.leaveType} leave. Status: Cancelled`,
-          relatedLeave: leave._id,
-        }),
-      ),
+    admins.forEach((admin) =>
+      createNotification({
+        recipient: admin._id,
+        recipientRole: "admin",
+        sender: req.user._id,
+        type: "LEAVE_CANCELLED",
+        message: `${req.user.firstName} ${req.user.lastName} has cancelled their ${leave.leaveType} leave. Status: Cancelled`,
+        relatedLeave: leave._id,
+      })
     );
 
     return res.status(200).json({

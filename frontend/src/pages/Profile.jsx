@@ -148,7 +148,7 @@ function Profile() {
             {/* Personal Information */}
             <div className="lg:col-span-2 flex flex-col h-full justify-center">
               <Section title="Personal Information" icon="user">
-                <ProfileField label="Email" value={employee.email} />
+                <ProfileField label="Email" value={employee.email} span />
                 <ProfileField
                   label="Phone Number"
                   value={employee.phoneNumber}
@@ -177,8 +177,9 @@ function Profile() {
                 <ProfileField
                   label="Employment Type"
                   value={employee.employmentType}
+                  span
                 />
-                <ProfileField label="Role" value={employee.role} />
+                <ProfileField label="Role" value={employee.role} span />
                 <ProfileField
                   label="Joining Date"
                   value={formatDate(employee.joiningDate)}
@@ -199,10 +200,12 @@ function Profile() {
                 <ProfileField
                   label="Contact Name"
                   value={employee.emergencyContactName}
+                  span
                 />
                 <ProfileField
                   label="Contact Number"
                   value={employee.emergencyContactNumber}
+                  span
                 />
               </Section>
             </div>

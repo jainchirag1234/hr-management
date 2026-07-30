@@ -183,7 +183,7 @@ function Announcement() {
 
   return (
     <div className="min-h-screen w-full bg-gray-50 flex flex-col">
-      <main className="flex-1 px-4 sm:px-6 py-6 sm:py-8 max-w-6xl mx-auto w-full">
+      <main className="flex-1 px-4 sm:px-6 py-6 sm:py-8 max-w-6xl mx-auto w-full page-enter">
       {error && (
         <div className="mb-6 bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-lg flex items-center justify-between">
           <span>{error}</span>
@@ -198,7 +198,7 @@ function Announcement() {
 
       {/* Stat cards */}
       {/* Stat cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-5 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         {stats.map((s, index) => {
           const themes = [
             {
@@ -243,7 +243,7 @@ function Announcement() {
           return (
             <div
               key={s.label}
-              className={`relative overflow-hidden bg-gradient-to-br ${theme.bg} rounded-xl border ${theme.border} p-5`}
+              className={`stat-card interactive-card relative overflow-hidden bg-gradient-to-br ${theme.bg} rounded-xl border ${theme.border} px-5 py-7 flex flex-col justify-center`}
             >
               <div className="flex items-center justify-between">
                 <div>
@@ -282,14 +282,14 @@ function Announcement() {
       </div>
       {/* Announcements card */}
       <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-        <div className="px-4 sm:px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+        <div className="px-4 sm:px-6 py-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <h2 className="text-xl font-bold text-gray-800">
             {isAdmin ? "Announcements" : "Active Announcements"}
           </h2>
           {isAdmin && (
             <button
               onClick={openAddForm}
-              className="text-sm font-medium text-white px-4 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 transition shrink-0"
+              className="text-sm font-medium text-white px-4 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 transition shrink-0 w-full sm:w-auto"
             >
               + Add Announcement
             </button>
@@ -297,16 +297,91 @@ function Announcement() {
         </div>
 
         {loading ? (
-          <div className="px-6 py-10 text-center text-gray-400 text-sm">
-            Loading...
+          <div className="overflow-hidden">
+            {[1,2,3,4,5].map((i) => (
+              <div key={i} className="skeleton skeleton-row" />
+            ))}
           </div>
         ) : rows.length === 0 ? (
           <div className="px-6 py-10 text-center text-gray-400 text-sm">
             No announcements found.
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+          <>
+            {/* Mobile View */}
+            <div className="block lg:hidden p-4">
+              <div className="flex flex-col gap-4">
+                {rows.map((announcement) => (
+                  <div
+                    key={announcement._id}
+                    className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex flex-col gap-3 relative overflow-hidden"
+                  >
+                    {/* Left accent border */}
+                    <div className={`absolute left-0 top-0 bottom-0 w-1 ${
+                      announcement.priority === "Urgent" ? "bg-red-500" :
+                      announcement.priority === "Important" ? "bg-amber-500" :
+                      "bg-gray-300"
+                    }`} />
+                    
+                    <div className="flex justify-between items-start gap-2 pl-2">
+                      <h3 className="font-bold text-gray-800">{announcement.title}</h3>
+                      <span
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider shrink-0 ${priorityBadgeClass(
+                          announcement.priority,
+                        )}`}
+                      >
+                        {announcement.priority || "Normal"}
+                      </span>
+                    </div>
+
+                    <p className="text-sm text-gray-600 pl-2">
+                      {announcement.description || "--"}
+                    </p>
+
+                    <div className="flex justify-between items-center text-sm bg-gray-50 p-3 rounded-lg mt-1 ml-2 border border-gray-100">
+                      <div>
+                        <span className="text-gray-400 block text-[10px] uppercase tracking-wider font-semibold mb-1">Expiry Date</span>
+                        <span className="font-medium text-gray-700">
+                          {formatDate(announcement.expiryDate)}
+                        </span>
+                      </div>
+                      {isAdmin && (
+                        <div className="text-right">
+                          <span className="text-gray-400 block text-[10px] uppercase tracking-wider font-semibold mb-1">Status</span>
+                          {isActive(announcement) ? (
+                            <span className="text-green-600 font-medium">Active</span>
+                          ) : (
+                            <span className="text-gray-500 font-medium">Expired</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {isAdmin && (
+                      <div className="flex gap-2 mt-1 ml-2">
+                        <button
+                          onClick={() => handleEdit(announcement)}
+                          className="flex-1 py-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-lg text-sm font-medium transition"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => setDeleteConfirm({ announcement })}
+                          disabled={deletingId === announcement._id}
+                          className="flex-1 py-2 bg-red-50 text-red-700 hover:bg-red-100 rounded-lg text-sm font-medium transition disabled:opacity-50"
+                        >
+                          {deletingId === announcement._id ? "Deleting..." : "Delete"}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Desktop View */}
+            <div className="hidden lg:block overflow-x-auto">
+              <table className="w-full text-sm">
               <thead>
                 <tr className="bg-indigo-600 text-left text-white">
                   <th className="px-6 py-3 font-medium">Title</th>
@@ -321,7 +396,7 @@ function Announcement() {
                   )}
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="table-zebra">
                 {rows.map((announcement) => (
                   <tr
                     key={announcement._id}
@@ -381,16 +456,17 @@ function Announcement() {
                 ))}
               </tbody>
             </table>
-          </div>
+            </div>
+          </>
         )}
       </div>
       </main>
 
       {/* Add / Edit modal - admin only */}
       {isAdmin && showForm && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center px-4 z-50">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
-            <div className="flex items-center justify-between mb-5 bg-indigo-50 p-6 -mx-6 -mt-6 rounded-t-2xl border-b border-indigo-100">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50 modal-backdrop">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-4 sm:p-6 max-h-[90vh] overflow-y-auto modal-content">
+            <div className="flex items-center justify-between mb-5 bg-indigo-50 p-4 sm:p-6 -mx-4 sm:-mx-6 -mt-4 sm:-mt-6 rounded-t-2xl border-b border-indigo-100">
               <h3 className="text-xl font-bold text-indigo-800">
                 {editingId ? "Edit Announcement" : "Add Announcement"}
               </h3>
@@ -505,8 +581,8 @@ function Announcement() {
 
       {/* Delete confirmation modal */}
       {deleteConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center px-4 z-50">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 modal-backdrop">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-4 sm:p-6 max-h-[90vh] overflow-y-auto modal-content">
             <div className="flex items-center justify-center w-14 h-14 rounded-full bg-red-100 mx-auto mb-4">
               <svg
                 xmlns="http://www.w3.org/2000/svg"

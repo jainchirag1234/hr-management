@@ -1,4 +1,4 @@
-﻿import { useContext, useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { AuthContext } from "../context/AuthContext";
 import { StatCardSkeleton, TableSkeleton } from "../component/Skeleton";
 import EmployeeForm from "./EmployeeForm";
@@ -106,7 +106,7 @@ function Dashboard() {
             } else {
               throw new Error(
                 profileRes.reason?.response?.data?.message ||
-                  "Failed to load profile",
+                "Failed to load profile",
               );
             }
 
@@ -175,7 +175,7 @@ function Dashboard() {
         if (!ignore) {
           setError(
             err?.response?.data?.message ||
-              "Failed to load data. Please try again.",
+            "Failed to load data. Please try again.",
           );
         }
       } finally {
@@ -322,30 +322,30 @@ function Dashboard() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
             {loading
               ? Array.from({ length: 4 }).map((_, i) => (
-                  <StatCardSkeleton key={i} />
-                ))
+                <StatCardSkeleton key={i} />
+              ))
               : adminStats.map((s) => (
+                <div
+                  key={s.label}
+                  className={`stat-card interactive-card bg-gradient-to-br ${s.color} rounded-xl shadow-md ${s.shadowColor} border ${s.borderColor} px-5 py-6 flex items-center gap-4 hover:shadow-lg`}
+                >
                   <div
-                    key={s.label}
-                    className={`stat-card interactive-card bg-gradient-to-br ${s.color} rounded-xl shadow-md ${s.shadowColor} border ${s.borderColor} px-5 py-6 flex items-center gap-4 hover:shadow-lg`}
+                    className={`w-12 h-12 rounded-xl bg-white shadow-sm flex items-center justify-center text-2xl flex-shrink-0`}
                   >
-                    <div
-                      className={`w-12 h-12 rounded-xl bg-white shadow-sm flex items-center justify-center text-2xl flex-shrink-0`}
-                    >
-                      {s.icon}
-                    </div>
-                    <div>
-                      <p className="text-gray-500 text-xs font-medium uppercase tracking-wide">
-                        {s.label}
-                      </p>
-                      <p
-                        className={`text-3xl font-bold ${s.textColor} mt-0.5 stat-value`}
-                      >
-                        {s.value}
-                      </p>
-                    </div>
+                    {s.icon}
                   </div>
-                ))}
+                  <div>
+                    <p className="text-gray-500 text-xs font-medium uppercase tracking-wide">
+                      {s.label}
+                    </p>
+                    <p
+                      className={`text-3xl font-bold ${s.textColor} mt-0.5 stat-value`}
+                    >
+                      {s.value}
+                    </p>
+                  </div>
+                </div>
+              ))}
           </div>
         )}
 
@@ -1062,17 +1062,17 @@ function Dashboard() {
                             <td className="px-5 py-3 text-gray-600">
                               {holDate
                                 ? holDate.toLocaleDateString("en-IN", {
-                                    day: "2-digit",
-                                    month: "short",
-                                    year: "numeric",
-                                  })
+                                  day: "2-digit",
+                                  month: "short",
+                                  year: "numeric",
+                                })
                                 : "--"}
                             </td>
                             <td className="px-5 py-3 text-gray-600">
                               {holDate
                                 ? holDate.toLocaleDateString("en-IN", {
-                                    weekday: "long",
-                                  })
+                                  weekday: "long",
+                                })
                                 : "--"}
                             </td>
                             <td className="px-5 py-3">
@@ -1143,13 +1143,13 @@ function Dashboard() {
                         <span className="text-xs text-gray-400 whitespace-nowrap shrink-0 pt-0.5">
                           {ann.createdAt
                             ? new Date(ann.createdAt).toLocaleDateString(
-                                "en-IN",
-                                {
-                                  day: "2-digit",
-                                  month: "short",
-                                  year: "numeric",
-                                },
-                              )
+                              "en-IN",
+                              {
+                                day: "2-digit",
+                                month: "short",
+                                year: "numeric",
+                              },
+                            )
                             : ""}
                         </span>
                       </div>

@@ -188,21 +188,11 @@ function Employee() {
         ) : isAdmin ? (
           /* ============ ADMIN VIEW: all employee records ============ */
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-            <div className="px-4 sm:px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+            <div className="px-4 sm:px-6 py-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-0">
               <h2 className="text-lg font-semibold text-gray-800">Employees</h2>
               <button
                 onClick={openAddForm}
-                className="
-                text-sm
-                font-medium
-                text-white
-                px-4
-                py-2
-                rounded-lg
-                bg-blue-700
-                hover:opacity-90
-                transition
-                "
+                className="w-full sm:w-auto text-sm font-medium text-white px-4 py-2 rounded-lg bg-blue-700 hover:opacity-90 transition"
               >
                 + Add Employee
               </button>

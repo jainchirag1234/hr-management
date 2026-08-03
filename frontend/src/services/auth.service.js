@@ -189,6 +189,39 @@ export const checkOutAttendance = (data) => {
 export const getMyAttendance = (employeeId) => {
   return api.get(`/attendance/history/${employeeId}`);
 };
+
+// ======================================
+// MONTHLY ATTENDANCE SUMMARY
+// GET /api/attendance/summary/monthly?employeeId=&month=&year=
+// ======================================
+export const getMonthlyAttendanceSummary = (employeeId, month, year) => {
+  return api.get("/attendance/summary/monthly", {
+    params: { employeeId, month, year },
+  });
+};
+
+// ======================================
+// YEARLY ATTENDANCE SUMMARY
+// GET /api/attendance/summary/yearly?employeeId=&year=
+// ======================================
+export const getYearlyAttendanceSummary = (employeeId, year) => {
+  return api.get("/attendance/summary/yearly", {
+    params: { employeeId, year },
+  });
+};
+
+// ======================================
+// GET EMPLOYEE ATTENDANCE CALENDAR
+// Joining date se aaj tak har din — server-side 7-day pagination
+// GET /api/attendance/calendar/:employeeId?page=1&limit=7
+// ======================================
+export const getEmployeeAttendanceCalendar = (employeeId, page = 1, limit = 7) => {
+  return api.get(`/attendance/calendar/${employeeId}`, {
+    params: { page, limit },
+  });
+};
+
+
 // ======================================
 // CREATE HOLIDAY
 // POST /api/holidays
@@ -325,4 +358,67 @@ export const deleteNotification = (id) => {
 
 export const clearAllNotifications = () => {
   return api.delete("/notification/clear-all");
+};
+
+// ======================================
+// SALARY STRUCTURE
+// ======================================
+
+// POST /api/salary/structure  (Admin only)
+export const createSalaryStructure = (data) => {
+  return api.post("/salary/structure", data);
+};
+
+// GET /api/salary/structure/:employeeId
+export const getSalaryStructure = (employeeId) => {
+  return api.get(`/salary/structure/${employeeId}`);
+};
+
+// GET /api/salary/structure (Admin only)
+export const getAllSalaryStructures = () => {
+  return api.get("/salary/structure");
+};
+
+// PUT /api/salary/structure/:employeeId  (Admin only)
+export const updateSalaryStructure = (employeeId, data) => {
+  return api.put(`/salary/structure/${employeeId}`, data);
+};
+
+// GET /api/salary/revisions/:employeeId
+export const getSalaryRevisions = (employeeId) => {
+  return api.get(`/salary/revisions/${employeeId}`);
+};
+
+// PATCH /api/salary/structure/:employeeId/bank-details
+export const updateBankDetailsApi = (employeeId, data) => {
+  return api.patch(`/salary/structure/${employeeId}/bank-details`, data);
+};
+
+// ======================================
+// PAYROLL
+// ======================================
+
+// POST /api/payroll/generate  (Admin only)
+export const generatePayrollApi = (data) => {
+  return api.post("/payroll/generate", data);
+};
+
+// GET /api/payroll  (Admin only)
+export const getAllPayroll = (params) => {
+  return api.get("/payroll", { params });
+};
+
+// GET /api/payroll/my-payslips  (Employee)
+export const getMyPayslips = () => {
+  return api.get("/payroll/my-payslips");
+};
+
+// GET /api/payroll/:id
+export const getPayslipById = (id) => {
+  return api.get(`/payroll/${id}`);
+};
+
+// PATCH /api/payroll/:id/mark-paid  (Admin only)
+export const markPayslipAsPaid = (id, data) => {
+  return api.patch(`/payroll/${id}/mark-paid`, data);
 };

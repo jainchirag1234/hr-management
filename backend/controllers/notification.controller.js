@@ -63,7 +63,7 @@ export const getMyNotifications = async (req, res) => {
     }
 
     const notifications = await Notification.find(filter)
-      .populate("sender", "name email role")
+      .populate("sender", "firstName lastName email role")
       .populate("relatedLeave")
       .sort({ createdAt: -1 });
 

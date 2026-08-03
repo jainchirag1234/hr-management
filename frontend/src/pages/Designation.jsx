@@ -177,13 +177,13 @@ const Designation = () => {
 
         {/* Table card */}
         <div className="bg-white rounded-xl shadow-md shadow-blue-500/10 border border-blue-100 overflow-hidden">
-          <div className="px-4 sm:px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <div className="px-4 sm:px-6 py-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-0">
             <h2 className="text-lg font-semibold text-gray-800">
               Designations
             </h2>
             <button
               onClick={openAddForm}
-              className="text-sm font-medium text-white px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition"
+              className="w-full sm:w-auto text-sm font-medium text-white px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition"
             >
               + Add Designation
             </button>

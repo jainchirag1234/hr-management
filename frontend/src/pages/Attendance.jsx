@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/preserve-manual-memoization */
 /* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useEffect, useMemo, useState, useContext } from "react";
@@ -12,7 +13,8 @@ import {
   getAttendanceById,
   updateAttendance,
   deleteAttendance,
-  getAllUsers, // <-- NAYA IMPORT: apne service file me is naam ka function check/add kar lena
+  getAllUsers,
+  getEmployeeAttendanceCalendar,
 } from "../services/auth.service";
 import Pagination from "../component/Pagination";
 
@@ -137,6 +139,65 @@ const getEmployeeDisplayName = (empObjOrId, employeesList = []) => {
   return empObj.name || fullName || empObj.email || "-";
 };
 
+// ---------- JOINING DATE / TENURE HELPERS ----------
+// User model me joining date ka field kabhi "joiningDate" hota hai, kabhi
+// "dateOfJoining" ya "joinDate" — teeno cases handle kar liye taaki backend
+// naming se koi farak na pade.
+const getJoiningDate = (empObj) => {
+  if (!empObj || typeof empObj !== "object") return null;
+  return (
+    empObj.joiningDate ||
+    empObj.dateOfJoining ||
+    empObj.joinDate ||
+    empObj.dateOfJoin ||
+    null
+  );
+};
+
+// Joining date se aaj tak ka poora tenure (years / months / days) nikaalta hai.
+const calculateTenure = (joiningDateStr) => {
+  if (!joiningDateStr) return null;
+  const start = new Date(joiningDateStr);
+  if (isNaN(start.getTime())) return null;
+
+  const today = new Date();
+  if (start > today) return null; // future joining date, ignore
+
+  let years = today.getFullYear() - start.getFullYear();
+  let months = today.getMonth() - start.getMonth();
+  let days = today.getDate() - start.getDate();
+
+  if (days < 0) {
+    months -= 1;
+    // pichle mahine ke total din nikaalo taaki carry sahi ho
+    const prevMonthLastDay = new Date(
+      today.getFullYear(),
+      today.getMonth(),
+      0,
+    ).getDate();
+    days += prevMonthLastDay;
+  }
+
+  if (months < 0) {
+    years -= 1;
+    months += 12;
+  }
+
+  const totalDays = Math.floor((today - start) / (1000 * 60 * 60 * 24));
+
+  return { years, months, days, totalDays };
+};
+
+// Tenure object ko readable string me convert karta hai, jaise "2y 3m 10d"
+const formatTenure = (tenure) => {
+  if (!tenure) return "-";
+  const parts = [];
+  if (tenure.years > 0) parts.push(`${tenure.years}y`);
+  if (tenure.months > 0) parts.push(`${tenure.months}m`);
+  if (tenure.days > 0 || parts.length === 0) parts.push(`${tenure.days}d`);
+  return parts.join(" ");
+};
+
 // ---------- LATE ATTENDANCE LOGIC ----------
 // Agar check-in time is threshold ke baad ho, to attendance "Late" maana jayega.
 // Format strictly 24-hour zero-padded "HH:MM" hona chahiye (jo <input type="time">
@@ -159,7 +220,6 @@ const STATUS_OPTIONS = [
   "On Leave",
   "Work From Home",
 ];
-
 
 const AttendancePage = () => {
   const { user } = useContext(AuthContext);
@@ -208,6 +268,14 @@ const AttendancePage = () => {
   const [filters, setFilters] = useState(emptyFilters);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 6;
+
+  // ---------- Admin: Calendar-based attendance view (joining date se aaj tak) ----------
+  const [calendarRecords, setCalendarRecords] = useState([]);
+  const [calendarMeta, setCalendarMeta] = useState(null);
+  const [calendarPage, setCalendarPage] = useState(1);
+  const [calendarLoading, setCalendarLoading] = useState(false);
+  const [calendarError, setCalendarError] = useState("");
+  const CALENDAR_LIMIT = 7;
 
   const todayRecord = myRecords.find(
     (r) => getLocalYYYYMMDD(r.date) === getTodayDateString(),
@@ -463,6 +531,10 @@ const AttendancePage = () => {
       }
       closeForm();
       fetchAllAttendance();
+      // Calendar refresh karo (same page par)
+      if (selectedEmployeeId) {
+        fetchEmployeeCalendar(selectedEmployeeId, calendarPage);
+      }
     } catch (err) {
       setError(err.response?.data?.message || "Operation failed");
     } finally {
@@ -490,6 +562,10 @@ const AttendancePage = () => {
       setMessage("Attendance deleted successfully");
       setDeleteTarget(null);
       fetchAllAttendance();
+      // Calendar refresh karo (same page par)
+      if (selectedEmployeeId) {
+        fetchEmployeeCalendar(selectedEmployeeId, calendarPage);
+      }
     } catch (err) {
       setError(err.response?.data?.message || "Delete failed");
     } finally {
@@ -545,13 +621,51 @@ const AttendancePage = () => {
   // karne par hi neeche poori history table open hoti hai.
   const [showMyHistory, setShowMyHistory] = useState(false);
 
+  // ================= ADMIN: CALENDAR FETCH =================
+  const fetchEmployeeCalendar = async (empId, page = 1) => {
+    setCalendarLoading(true);
+    setCalendarError("");
+    try {
+      const res = await getEmployeeAttendanceCalendar(
+        empId,
+        page,
+        CALENDAR_LIMIT,
+      );
+      setCalendarRecords(res.data.records || []);
+      setCalendarMeta({
+        totalDays: res.data.totalDays,
+        totalPages: res.data.totalPages,
+        currentPage: res.data.currentPage,
+        limit: res.data.limit,
+        hasNextPage: res.data.hasNextPage,
+        hasPrevPage: res.data.hasPrevPage,
+        joiningDate: res.data.joiningDate,
+      });
+      setCalendarPage(page);
+    } catch (err) {
+      setCalendarError(
+        err.response?.data?.message || "Failed to load attendance calendar",
+      );
+    } finally {
+      setCalendarLoading(false);
+    }
+  };
+
   const openEmployeeDetail = (empId) => {
     setSelectedEmployeeId(empId);
     setCurrentPage(1);
+    setCalendarPage(1);
+    setCalendarRecords([]);
+    setCalendarMeta(null);
+    fetchEmployeeCalendar(empId, 1);
   };
 
   const closeEmployeeDetail = () => {
     setSelectedEmployeeId(null);
+    setCalendarRecords([]);
+    setCalendarMeta(null);
+    setCalendarPage(1);
+    setCalendarError("");
   };
 
   // ================= ADMIN: PER-EMPLOYEE SUMMARY (for the name cards) =================
@@ -589,7 +703,8 @@ const AttendancePage = () => {
     const summaries = Array.from(map.values());
     // Sort by most recent attendance date (latest first)
     summaries.sort((a, b) => {
-      if (b.latestDate && a.latestDate) return b.latestDate.localeCompare(a.latestDate);
+      if (b.latestDate && a.latestDate)
+        return b.latestDate.localeCompare(a.latestDate);
       return 0;
     });
     return summaries;
@@ -613,6 +728,12 @@ const AttendancePage = () => {
       null
     );
   }, [selectedEmployeeId, employees, selectedEmployeeRecords]);
+
+  // Selected employee ki joining date se aaj tak ka tenure
+  const selectedEmployeeTenure = useMemo(() => {
+    const joiningDate = getJoiningDate(selectedEmployeeObj);
+    return calculateTenure(joiningDate);
+  }, [selectedEmployeeObj]);
 
   const selectedEmployeeStats = useMemo(() => {
     const stats = {
@@ -672,6 +793,12 @@ const AttendancePage = () => {
     const maxCount = Math.max(1, ...Object.values(counts));
     return { counts, total, avgHours, maxCount };
   }, [myRecords]);
+
+  // Logged-in employee (khud) ki joining date se aaj tak ka tenure
+  const myTenure = useMemo(() => {
+    const joiningDate = getJoiningDate(user);
+    return calculateTenure(joiningDate);
+  }, [user]);
 
   // ---------- Bar chart color tokens (solid + gradient pair per status) ----------
   const STATUS_BAR_COLORS = {
@@ -941,10 +1068,32 @@ const AttendancePage = () => {
                   <h2 className="text-2xl font-bold text-gray-900">
                     {todayRecord ? "Today's Status" : "Mark Your Attendance"}
                   </h2>
+                  {myTenure && (
+                    <p className="text-xs text-gray-500 mt-1.5 inline-flex items-center gap-1.5">
+                      <svg
+                        className="w-3.5 h-3.5 text-gray-400"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                        ></path>
+                      </svg>
+                      Joined {formatDateDisplay(getJoiningDate(user))} ·{" "}
+                      <span className="font-semibold text-gray-700">
+                        {formatTenure(myTenure)}
+                      </span>{" "}
+                      with the company
+                    </p>
+                  )}
                 </div>
 
-                {todayRecord && (
-                  todayRecord.checkOutTime ? (
+                {todayRecord &&
+                  (todayRecord.checkOutTime ? (
                     // Checked out → Session Ended badge
                     <div className="flex items-center gap-2 bg-rose-50 px-4 py-2 rounded-full border border-rose-100">
                       <span className="relative flex h-2.5 w-2.5">
@@ -965,8 +1114,7 @@ const AttendancePage = () => {
                         Active Session
                       </span>
                     </div>
-                  )
-                )}
+                  ))}
               </div>
 
               <div className="flex flex-wrap items-center gap-4 mb-8">
@@ -1146,7 +1294,10 @@ const AttendancePage = () => {
                 </div>
               ) : (
                 <button
-                  onClick={() => { setShowMyHistory(true); setCurrentPage(1); }}
+                  onClick={() => {
+                    setShowMyHistory(true);
+                    setCurrentPage(1);
+                  }}
                   className="w-full text-left bg-gradient-to-b from-gray-50 to-gray-50/60 hover:from-gray-100 hover:to-gray-100/60 rounded-2xl border border-gray-100 p-5 sm:p-7 transition-colors group cursor-pointer"
                   title="Click to view full history"
                 >
@@ -1279,7 +1430,12 @@ const AttendancePage = () => {
                   </div>
                   {/* Modal Body — scrollable table */}
                   <div className="overflow-y-auto">
-                    {renderHistoryTable(myRecords.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage))}
+                    {renderHistoryTable(
+                      myRecords.slice(
+                        (currentPage - 1) * itemsPerPage,
+                        currentPage * itemsPerPage,
+                      ),
+                    )}
                   </div>
                   {myRecords.length > itemsPerPage && (
                     <div className="p-4 bg-gray-50/50 border-t border-gray-100 shrink-0">
@@ -1693,108 +1849,113 @@ const AttendancePage = () => {
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 p-6">
-                {employeeSummaries.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((s) => {
-                  const attendanceRate =
-                    s.total > 0 ? Math.round((s.present / s.total) * 100) : 0;
-                  return (
-                    <button
-                      key={s.empId}
-                      onClick={() => openEmployeeDetail(s.empId)}
-                      className="text-left bg-white hover:bg-blue-50/40 border border-gray-100 hover:border-blue-200 rounded-2xl p-5 transition-all duration-200 shadow-sm hover:shadow-md active:scale-[0.99] group relative overflow-hidden"
-                    >
-                      {/* subtle accent bar on hover */}
-                      <span className="absolute left-0 top-0 h-full w-1 bg-blue-500 scale-y-0 group-hover:scale-y-100 origin-top transition-transform duration-200"></span>
+                {employeeSummaries
+                  .slice(
+                    (currentPage - 1) * itemsPerPage,
+                    currentPage * itemsPerPage,
+                  )
+                  .map((s) => {
+                    const attendanceRate =
+                      s.total > 0 ? Math.round((s.present / s.total) * 100) : 0;
+                    return (
+                      <button
+                        key={s.empId}
+                        onClick={() => openEmployeeDetail(s.empId)}
+                        className="text-left bg-white hover:bg-blue-50/40 border border-gray-100 hover:border-blue-200 rounded-2xl p-5 transition-all duration-200 shadow-sm hover:shadow-md active:scale-[0.99] group relative overflow-hidden"
+                      >
+                        {/* subtle accent bar on hover */}
+                        <span className="absolute left-0 top-0 h-full w-1 bg-blue-500 scale-y-0 group-hover:scale-y-100 origin-top transition-transform duration-200"></span>
 
-                      <div className="flex items-start justify-between gap-3 mb-4">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-11 h-11 rounded-full shrink-0 shadow-sm ring-2 ring-white overflow-hidden bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
-                            {s.empObj?.profileImage ? (
-                              <img
-                                src={s.empObj.profileImage}
-                                alt={getEmployeeDisplayName(
-                                  s.empObj,
-                                  employees,
-                                )}
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <span className="text-white font-bold text-sm">
-                                {getEmployeeDisplayName(s.empObj, employees)
-                                  .charAt(0)
-                                  .toUpperCase()}
-                              </span>
-                            )}
+                        <div className="flex items-start justify-between gap-3 mb-4">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-11 h-11 rounded-full shrink-0 shadow-sm ring-2 ring-white overflow-hidden bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
+                              {s.empObj?.profileImage ? (
+                                <img
+                                  src={s.empObj.profileImage}
+                                  alt={getEmployeeDisplayName(
+                                    s.empObj,
+                                    employees,
+                                  )}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <span className="text-white font-bold text-sm">
+                                  {getEmployeeDisplayName(s.empObj, employees)
+                                    .charAt(0)
+                                    .toUpperCase()}
+                                </span>
+                              )}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-semibold text-gray-900 truncate group-hover:text-blue-700 transition-colors">
+                                {getEmployeeDisplayName(s.empObj, employees)}
+                              </p>
+                              <p className="text-xs text-gray-500 truncate">
+                                {s.empObj?.email ||
+                                  `${s.total} record${s.total !== 1 ? "s" : ""}`}
+                              </p>
+                            </div>
                           </div>
-                          <div className="min-w-0">
-                            <p className="font-semibold text-gray-900 truncate group-hover:text-blue-700 transition-colors">
-                              {getEmployeeDisplayName(s.empObj, employees)}
-                            </p>
-                            <p className="text-xs text-gray-500 truncate">
-                              {s.empObj?.email ||
-                                `${s.total} record${s.total !== 1 ? "s" : ""}`}
-                            </p>
+                          <svg
+                            className="w-4 h-4 text-gray-300 group-hover:text-blue-400 shrink-0 mt-1 transition-colors"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth="2"
+                              d="M9 5l7 7-7 7"
+                            ></path>
+                          </svg>
+                        </div>
+
+                        {/* attendance rate progress bar */}
+                        <div className="mb-4">
+                          <div className="flex items-center justify-between text-xs mb-1.5">
+                            <span className="text-gray-500 font-medium">
+                              Attendance rate
+                            </span>
+                            <span className="font-bold text-gray-800">
+                              {attendanceRate}%
+                            </span>
+                          </div>
+                          <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                            <div
+                              className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-emerald-600 transition-all duration-500"
+                              style={{ width: `${attendanceRate}%` }}
+                            ></div>
                           </div>
                         </div>
-                        <svg
-                          className="w-4 h-4 text-gray-300 group-hover:text-blue-400 shrink-0 mt-1 transition-colors"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth="2"
-                            d="M9 5l7 7-7 7"
-                          ></path>
-                        </svg>
-                      </div>
 
-                      {/* attendance rate progress bar */}
-                      <div className="mb-4">
-                        <div className="flex items-center justify-between text-xs mb-1.5">
-                          <span className="text-gray-500 font-medium">
-                            Attendance rate
+                        <div className="flex gap-2 flex-wrap">
+                          <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md ring-1 ring-inset ring-emerald-600/10">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                            {s.present} Present
                           </span>
-                          <span className="font-bold text-gray-800">
-                            {attendanceRate}%
-                          </span>
+                          {s.late > 0 && (
+                            <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-md ring-1 ring-inset ring-amber-600/10">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                              {s.late} Late
+                            </span>
+                          )}
+                          {s.absent > 0 && (
+                            <span className="inline-flex items-center gap-1 text-xs font-semibold text-rose-700 bg-rose-50 px-2.5 py-1 rounded-md ring-1 ring-inset ring-rose-600/10">
+                              <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                              {s.absent} Absent
+                            </span>
+                          )}
+                          {s.halfDay > 0 && (
+                            <span className="inline-flex items-center gap-1 text-xs font-semibold text-yellow-700 bg-yellow-50 px-2.5 py-1 rounded-md ring-1 ring-inset ring-yellow-600/10">
+                              <span className="w-1.5 h-1.5 rounded-full bg-yellow-500"></span>
+                              {s.halfDay} Half Day
+                            </span>
+                          )}
                         </div>
-                        <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
-                          <div
-                            className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-emerald-600 transition-all duration-500"
-                            style={{ width: `${attendanceRate}%` }}
-                          ></div>
-                        </div>
-                      </div>
-
-                      <div className="flex gap-2 flex-wrap">
-                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md ring-1 ring-inset ring-emerald-600/10">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                          {s.present} Present
-                        </span>
-                        {s.late > 0 && (
-                          <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-md ring-1 ring-inset ring-amber-600/10">
-                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                            {s.late} Late
-                          </span>
-                        )}
-                        {s.absent > 0 && (
-                          <span className="inline-flex items-center gap-1 text-xs font-semibold text-rose-700 bg-rose-50 px-2.5 py-1 rounded-md ring-1 ring-inset ring-rose-600/10">
-                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
-                            {s.absent} Absent
-                          </span>
-                        )}
-                        {s.halfDay > 0 && (
-                          <span className="inline-flex items-center gap-1 text-xs font-semibold text-yellow-700 bg-yellow-50 px-2.5 py-1 rounded-md ring-1 ring-inset ring-yellow-600/10">
-                            <span className="w-1.5 h-1.5 rounded-full bg-yellow-500"></span>
-                            {s.halfDay} Half Day
-                          </span>
-                        )}
-                      </div>
-                    </button>
-                  );
-                })}
+                      </button>
+                    );
+                  })}
               </div>
             )}
             {employeeSummaries.length > itemsPerPage && (
@@ -1852,6 +2013,27 @@ const AttendancePage = () => {
                         <span>{selectedEmployeeObj.phone}</span>
                       )}
                     </div>
+                    {/* NAYA: Joining date se aaj tak ka tenure */}
+                    {selectedEmployeeTenure && (
+                      <div className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-md ring-1 ring-inset ring-indigo-600/10">
+                        <svg
+                          className="w-3.5 h-3.5"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth="2"
+                            d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                          ></path>
+                        </svg>
+                        Joined{" "}
+                        {formatDateDisplay(getJoiningDate(selectedEmployeeObj))}{" "}
+                        · {formatTenure(selectedEmployeeTenure)} with company
+                      </div>
+                    )}
                   </div>
                 </div>
                 <button
@@ -1874,7 +2056,7 @@ const AttendancePage = () => {
                 </button>
               </div>
 
-              <div className="px-6 py-5 border-b border-gray-100 grid grid-cols-2 sm:grid-cols-4 gap-4 shrink-0">
+              <div className="px-6 py-5 border-b border-gray-100 grid grid-cols-2 sm:grid-cols-5 gap-4 shrink-0">
                 <div className="bg-gray-50 rounded-xl p-4 text-center">
                   <p className="text-xl font-bold text-gray-900">
                     {selectedEmployeeStats.total}
@@ -1907,21 +2089,295 @@ const AttendancePage = () => {
                     Avg Hours
                   </p>
                 </div>
+                {/* NAYA: Tenure stat card (joining date se aaj tak total din) */}
+                <div className="bg-indigo-50 rounded-xl p-4 text-center">
+                  <p className="text-xl font-bold text-indigo-700">
+                    {selectedEmployeeTenure
+                      ? selectedEmployeeTenure.totalDays
+                      : "-"}
+                  </p>
+                  <p className="text-xs text-indigo-600 font-semibold uppercase tracking-wider mt-1">
+                    Days Since Joining
+                  </p>
+                </div>
               </div>
 
+              {/* ---- Calendar-based attendance table — joining date se aaj tak ---- */}
               <div className="overflow-y-auto">
-                {renderHistoryTable(selectedEmployeeRecords.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage), {
-                  showActions: true,
-                })}
+                {calendarLoading ? (
+                  <div className="flex items-center justify-center py-16">
+                    <svg
+                      className="animate-spin h-8 w-8 text-indigo-500"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      />
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                      />
+                    </svg>
+                  </div>
+                ) : calendarError ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-rose-500 gap-2">
+                    <svg
+                      className="w-8 h-8"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
+                      />
+                    </svg>
+                    <p className="font-semibold text-sm">{calendarError}</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm text-left">
+                      <thead>
+                        <tr className="bg-indigo-600 text-white font-medium border-b border-indigo-700">
+                          <th className="py-4 px-6 text-xs uppercase tracking-wider font-semibold">
+                            Date
+                          </th>
+                          <th className="py-4 px-6 text-xs uppercase tracking-wider font-semibold">
+                            Day
+                          </th>
+                          <th className="py-4 px-6 text-xs uppercase tracking-wider font-semibold">
+                            Check-In
+                          </th>
+                          <th className="py-4 px-6 text-xs uppercase tracking-wider font-semibold">
+                            Check-Out
+                          </th>
+                          <th className="py-4 px-6 text-xs uppercase tracking-wider font-semibold">
+                            Hours
+                          </th>
+                          <th className="py-4 px-6 text-xs uppercase tracking-wider font-semibold">
+                            Status
+                          </th>
+                          <th className="py-4 px-6 text-xs uppercase tracking-wider font-semibold text-right">
+                            Actions
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {calendarRecords.length === 0 && (
+                          <tr>
+                            <td
+                              colSpan={7}
+                              className="py-12 text-center text-gray-400"
+                            >
+                              No records found
+                            </td>
+                          </tr>
+                        )}
+                        {calendarRecords.map((r, idx) => {
+                          const dateObj = new Date(r.date + "T00:00:00");
+                          const dayName = dateObj.toLocaleDateString("en-US", {
+                            weekday: "short",
+                          });
+                          const isNotMarked = r.isNotMarked;
+                          const isSundayOff = r.isSundayOff;
+                          return (
+                            <tr
+                              key={r._id ? String(r._id) : `not-marked-${idx}`}
+                              className={`transition-colors group ${
+                                isSundayOff
+                                  ? "bg-gray-50/60 hover:bg-gray-100"
+                                  : isNotMarked
+                                    ? "bg-rose-50/40 hover:bg-rose-50"
+                                    : "hover:bg-gray-50/50"
+                              }`}
+                            >
+                              <td className="py-4 px-6">
+                                <span
+                                  className={`font-medium ${isSundayOff ? "text-gray-500" : isNotMarked ? "text-rose-700" : "text-gray-900"}`}
+                                >
+                                  {formatDateDisplay(r.date)}
+                                </span>
+                              </td>
+                              <td className="py-4 px-6 text-gray-500 font-medium">
+                                {dayName}
+                              </td>
+                              <td className="py-4 px-6 text-gray-600">
+                                {r.checkInTime
+                                  ? formatTimeDisplay(r.checkInTime)
+                                  : "-"}
+                              </td>
+                              <td className="py-4 px-6 text-gray-600">
+                                {r.checkOutTime
+                                  ? formatTimeDisplay(r.checkOutTime)
+                                  : "-"}
+                              </td>
+                              <td className="py-4 px-6 text-gray-600 font-medium">
+                                {r.workingHours != null
+                                  ? formatWorkingHours(r.workingHours)
+                                  : "-"}
+                              </td>
+                              <td className="py-4 px-6">
+                                <span
+                                  className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold ${
+                                    isSundayOff
+                                      ? "bg-gray-100 text-gray-700 ring-1 ring-inset ring-gray-600/20"
+                                      : isNotMarked
+                                        ? "bg-rose-100 text-rose-700 ring-1 ring-inset ring-rose-600/20"
+                                        : r.attendanceStatus === "Present"
+                                          ? "bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-600/20"
+                                          : r.attendanceStatus === "Late"
+                                            ? "bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-600/20"
+                                            : r.attendanceStatus === "Absent"
+                                              ? "bg-rose-50 text-rose-700 ring-1 ring-inset ring-rose-600/20"
+                                              : r.attendanceStatus ===
+                                                  "Half Day"
+                                                ? "bg-yellow-50 text-yellow-700 ring-1 ring-inset ring-yellow-600/20"
+                                                : r.attendanceStatus ===
+                                                    "On Leave"
+                                                  ? "bg-purple-50 text-purple-700 ring-1 ring-inset ring-purple-600/20"
+                                                  : "bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600/20"
+                                  }`}
+                                >
+                                  {isSundayOff
+                                    ? "☕ Weekly Off"
+                                    : isNotMarked
+                                      ? "⚠ Not Marked"
+                                      : r.attendanceStatus}
+                                </span>
+                              </td>
+                              <td className="py-4 px-6">
+                                <div className="flex justify-end gap-2">
+                                  {!isNotMarked && r._id ? (
+                                    <>
+                                      <button
+                                        onClick={() =>
+                                          openEditForm(String(r._id))
+                                        }
+                                        className="p-1.5 text-sky-600 hover:text-sky-700 hover:bg-sky-50 rounded-lg transition-colors"
+                                        title="Edit Record"
+                                      >
+                                        <svg
+                                          className="w-4 h-4"
+                                          fill="none"
+                                          stroke="currentColor"
+                                          viewBox="0 0 24 24"
+                                        >
+                                          <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            strokeWidth="2"
+                                            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                                          />
+                                        </svg>
+                                      </button>
+                                      <button
+                                        onClick={() => openDeleteConfirm(r)}
+                                        className="p-1.5 text-gray-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                                        title="Delete Record"
+                                      >
+                                        <svg
+                                          className="w-4 h-4"
+                                          fill="none"
+                                          stroke="currentColor"
+                                          viewBox="0 0 24 24"
+                                        >
+                                          <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            strokeWidth="2"
+                                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                          />
+                                        </svg>
+                                      </button>
+                                    </>
+                                  ) : isSundayOff ? (
+                                    <span className="text-xs text-gray-400 font-medium px-2.5 py-1">
+                                      Holiday
+                                    </span>
+                                  ) : (
+                                    <button
+                                      onClick={() => {
+                                        setForm({
+                                          _id: null,
+                                          employee: selectedEmployeeId,
+                                          date: r.date,
+                                          checkInTime: "",
+                                          checkOutTime: "",
+                                          attendanceStatus: "Present",
+                                          notes: "",
+                                        });
+                                        setIsEditMode(false);
+                                        setShowForm(true);
+                                      }}
+                                      className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1 rounded-lg transition-colors"
+                                      title="Mark Attendance for this date"
+                                    >
+                                      + Mark
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
-              {selectedEmployeeRecords.length > itemsPerPage && (
-                <div className="p-4 bg-gray-50/50 border-t border-gray-100 shrink-0">
-                  <Pagination
-                    totalItems={selectedEmployeeRecords.length}
-                    itemsPerPage={itemsPerPage}
-                    currentPage={currentPage}
-                    setCurrentPage={setCurrentPage}
-                  />
+
+              {/* ---- Pagination — 7 din per page ---- */}
+              {calendarMeta && calendarMeta.totalPages > 1 && (
+                <div className="p-4 bg-gray-50/50 border-t border-gray-100 shrink-0 flex items-center justify-between gap-3 flex-wrap">
+                  <span className="text-xs text-gray-500">
+                    Showing{" "}
+                    {(calendarMeta.currentPage - 1) * calendarMeta.limit + 1}
+                    {" – "}
+                    {Math.min(
+                      calendarMeta.currentPage * calendarMeta.limit,
+                      calendarMeta.totalDays,
+                    )}{" "}
+                    of {calendarMeta.totalDays} days
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() =>
+                        fetchEmployeeCalendar(
+                          selectedEmployeeId,
+                          calendarPage - 1,
+                        )
+                      }
+                      disabled={!calendarMeta.hasPrevPage || calendarLoading}
+                      className="px-3 py-1.5 rounded-lg text-sm font-medium border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:pointer-events-none transition-colors"
+                    >
+                      ← Prev
+                    </button>
+                    <span className="text-sm font-semibold text-gray-700 min-w-[90px] text-center">
+                      Page {calendarMeta.currentPage} /{" "}
+                      {calendarMeta.totalPages}
+                    </span>
+                    <button
+                      onClick={() =>
+                        fetchEmployeeCalendar(
+                          selectedEmployeeId,
+                          calendarPage + 1,
+                        )
+                      }
+                      disabled={!calendarMeta.hasNextPage || calendarLoading}
+                      className="px-3 py-1.5 rounded-lg text-sm font-medium border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:pointer-events-none transition-colors"
+                    >
+                      Next →
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -1931,95 +2387,105 @@ const AttendancePage = () => {
 
       {/* ================= SESSION ENDED OVERLAY ================= */}
       {/* Shown after employee successfully checks out for the day. */}
-      {showSessionEnded && createPortal(
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 9999,
-            backgroundColor: "rgba(17,24,39,0.85)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "1rem",
-          }}
-        >
+      {showSessionEnded &&
+        createPortal(
           <div
-            className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-8 flex flex-col items-center text-center"
-            style={{ animation: "fadeScaleIn 0.35s cubic-bezier(0.34,1.56,0.64,1) both" }}
+            style={{
+              position: "fixed",
+              inset: 0,
+              zIndex: 9999,
+              backgroundColor: "rgba(17,24,39,0.85)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "1rem",
+            }}
           >
-            {/* Icon */}
-            <div className="w-20 h-20 rounded-full bg-rose-100 flex items-center justify-center mb-5">
-              <svg
-                className="w-10 h-10 text-rose-500"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
+            <div
+              className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-8 flex flex-col items-center text-center"
+              style={{
+                animation:
+                  "fadeScaleIn 0.35s cubic-bezier(0.34,1.56,0.64,1) both",
+              }}
+            >
+              {/* Icon */}
+              <div className="w-20 h-20 rounded-full bg-rose-100 flex items-center justify-center mb-5">
+                <svg
+                  className="w-10 h-10 text-rose-500"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="1.8"
+                    d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"
+                  />
+                </svg>
+              </div>
+
+              {/* Title */}
+              <h2 className="text-2xl font-extrabold text-gray-900 mb-2 tracking-tight">
+                Session Ended
+              </h2>
+
+              {/* Sub-text */}
+              <p className="text-gray-500 text-sm leading-relaxed mb-1">
+                You have successfully checked out for today.
+              </p>
+              <p className="text-rose-500 text-sm font-semibold mb-6">
+                Your active session has been rejected for further use today.
+              </p>
+
+              {/* Today's summary */}
+              {todayRecord && (
+                <div className="w-full bg-gray-50 rounded-2xl border border-gray-100 p-4 mb-6 grid grid-cols-3 gap-3 text-center">
+                  <div>
+                    <p className="text-xs text-gray-400 font-medium uppercase tracking-wider mb-1">
+                      Check In
+                    </p>
+                    <p className="text-sm font-bold text-gray-800">
+                      {formatTimeDisplay(todayRecord.checkInTime)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-400 font-medium uppercase tracking-wider mb-1">
+                      Check Out
+                    </p>
+                    <p className="text-sm font-bold text-rose-600">
+                      {formatTimeDisplay(todayRecord.checkOutTime)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-400 font-medium uppercase tracking-wider mb-1">
+                      Hours
+                    </p>
+                    <p className="text-sm font-bold text-emerald-600">
+                      {formatWorkingHours(todayRecord.workingHours)}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Dismiss button */}
+              <button
+                onClick={() => setShowSessionEnded(false)}
+                className="w-full py-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-semibold text-sm transition-all duration-200 shadow-md hover:shadow-lg active:scale-[0.98]"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="1.8"
-                  d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"
-                />
-              </svg>
+                Dismiss
+              </button>
             </div>
 
-            {/* Title */}
-            <h2 className="text-2xl font-extrabold text-gray-900 mb-2 tracking-tight">
-              Session Ended
-            </h2>
-
-            {/* Sub-text */}
-            <p className="text-gray-500 text-sm leading-relaxed mb-1">
-              You have successfully checked out for today.
-            </p>
-            <p className="text-rose-500 text-sm font-semibold mb-6">
-              Your active session has been rejected for further use today.
-            </p>
-
-            {/* Today's summary */}
-            {todayRecord && (
-              <div className="w-full bg-gray-50 rounded-2xl border border-gray-100 p-4 mb-6 grid grid-cols-3 gap-3 text-center">
-                <div>
-                  <p className="text-xs text-gray-400 font-medium uppercase tracking-wider mb-1">Check In</p>
-                  <p className="text-sm font-bold text-gray-800">
-                    {formatTimeDisplay(todayRecord.checkInTime)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-400 font-medium uppercase tracking-wider mb-1">Check Out</p>
-                  <p className="text-sm font-bold text-rose-600">
-                    {formatTimeDisplay(todayRecord.checkOutTime)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-400 font-medium uppercase tracking-wider mb-1">Hours</p>
-                  <p className="text-sm font-bold text-emerald-600">
-                    {formatWorkingHours(todayRecord.workingHours)}
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* Dismiss button */}
-            <button
-              onClick={() => setShowSessionEnded(false)}
-              className="w-full py-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-semibold text-sm transition-all duration-200 shadow-md hover:shadow-lg active:scale-[0.98]"
-            >
-              Dismiss
-            </button>
-          </div>
-
-          <style>{`
+            <style>{`
             @keyframes fadeScaleIn {
               from { opacity: 0; transform: scale(0.85); }
               to   { opacity: 1; transform: scale(1); }
             }
           `}</style>
-        </div>,
-        document.body
-      )}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 };

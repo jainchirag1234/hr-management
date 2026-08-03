@@ -12,7 +12,15 @@ const attendanceSchema = new mongoose.Schema(
       type: Date,
       required: true,
     },
+    month: {
+      type: Number, // 1-12
+      required: true,
+    },
 
+    year: {
+      type: Number,
+      required: true,
+    },
     checkInTime: {
       type: String,
       default: "",
@@ -54,6 +62,13 @@ const attendanceSchema = new mongoose.Schema(
 
 // Same employee ke liye same date par duplicate attendance na bane
 attendanceSchema.index({ employee: 1, date: 1 }, { unique: true });
+attendanceSchema.index({ employee: 1, month: 1, year: 1 });
+attendanceSchema.pre("validate", function () {
+  if (this.date) {
+    this.month = this.date.getMonth() + 1;
+    this.year = this.date.getFullYear();
+  }
+});
 
 const Attendance = mongoose.model("Attendance", attendanceSchema);
 

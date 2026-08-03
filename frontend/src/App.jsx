@@ -14,6 +14,8 @@ import Leave from "./pages/Leave";
 import Holiday from "./pages/Holiday";
 import Announcement from "./pages/Announcement";
 import Profile from "./pages/Profile";
+import Salary from "./pages/Salary";
+import Payroll from "./pages/Payroll";
 import "./App.css";
 
 // Agar user already logged in hai, login page pe mat jaane do
@@ -141,6 +143,22 @@ function App() {
         element={
           <RoleRoute allowedRoles={["employee"]}>
             <Profile />
+          </RoleRoute>
+        }
+      />
+      <Route
+        path="/salary"
+        element={
+          <RoleRoute allowedRoles={["admin", "employee"]}>
+            <Salary />
+          </RoleRoute>
+        }
+      />
+      <Route
+        path="/payroll"
+        element={
+          <RoleRoute allowedRoles={["admin", "employee"]}>
+            <Payroll />
           </RoleRoute>
         }
       />

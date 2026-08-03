@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/purity */
 // Reusable loading skeleton components
 export function SkeletonCard({ className = "" }) {
   return (

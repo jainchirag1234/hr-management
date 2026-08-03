@@ -1,4 +1,6 @@
 import Attendance from "../models/Attendance.js";
+import mongoose from "mongoose";
+import User from "../models/User.js";
 
 // ======================================
 // CREATE ATTENDANCE
@@ -119,6 +121,7 @@ export const checkIn = async (req, res) => {
       attendance,
     });
   } catch (error) {
+    console.error("CheckIn Error:", error);
     res.status(500).json({
       success: false,
       message: error.message,
@@ -396,5 +399,216 @@ export const deleteAttendance = async (req, res) => {
       success: false,
       message: error.message,
     });
+  }
+};
+export const getMonthlyAttendanceSummary = async (req, res) => {
+  try {
+    const { employeeId, month, year } = req.query;
+
+    const summary = await Attendance.aggregate([
+      {
+        $match: {
+          employee: new mongoose.Types.ObjectId(employeeId),
+          month: Number(month),
+          year: Number(year),
+        },
+      },
+      {
+        $group: {
+          _id: "$attendanceStatus",
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    // Total working days bhi nikaal lo
+    const totalDays = await Attendance.countDocuments({
+      employee: employeeId,
+      month: Number(month),
+      year: Number(year),
+    });
+
+    // Result ko readable format mein convert karo
+    const statusWiseCount = {
+      Present: 0,
+      Absent: 0,
+      "Half Day": 0,
+      Late: 0,
+      "On Leave": 0,
+      "Work From Home": 0,
+    };
+
+    summary.forEach((item) => {
+      statusWiseCount[item._id] = item.count;
+    });
+
+    res.status(200).json({
+      success: true,
+      totalDays,
+      summary: statusWiseCount,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// Year-wise total days summary (month by month breakdown)
+export const getYearlyAttendanceSummary = async (req, res) => {
+  try {
+    const { employeeId, year } = req.query;
+
+    const summary = await Attendance.aggregate([
+      {
+        $match: {
+          employee: new mongoose.Types.ObjectId(employeeId),
+          year: Number(year),
+        },
+      },
+      {
+        $group: {
+          _id: { month: "$month", status: "$attendanceStatus" },
+          count: { $sum: 1 },
+        },
+      },
+      {
+        $group: {
+          _id: "$_id.month",
+          statuses: {
+            $push: { status: "$_id.status", count: "$count" },
+          },
+          totalDays: { $sum: "$count" },
+        },
+      },
+      { $sort: { _id: 1 } },
+    ]);
+
+    res.status(200).json({
+      success: true,
+      year,
+      monthlyBreakdown: summary,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// ======================================
+// GET EMPLOYEE ATTENDANCE CALENDAR
+// Joining date se aaj tak har din ka record (Not Marked bhi)
+// GET /api/attendance/calendar/:employeeId?page=1&limit=7
+// ======================================
+export const getEmployeeAttendanceCalendar = async (req, res) => {
+  try {
+    const { employeeId } = req.params;
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit) || 7));
+
+    // 1. Employee fetch karo
+    const employee = await User.findById(employeeId).select(
+      "joiningDate firstName lastName",
+    );
+    if (!employee) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Employee not found" });
+    }
+    if (!employee.joiningDate) {
+      return res.status(400).json({
+        success: false,
+        message: "Employee joining date not set",
+      });
+    }
+
+    // 2. Date range setup (using local date parts to construct a stable UTC midnight date)
+    const now = new Date();
+    const today = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+    
+    // Parse joining date safely
+    const empJoin = new Date(employee.joiningDate);
+    const joiningDate = new Date(Date.UTC(empJoin.getFullYear(), empJoin.getMonth(), empJoin.getDate()));
+
+    if (joiningDate > today) {
+      return res.status(400).json({
+        success: false,
+        message: "Joining date is in the future",
+      });
+    }
+
+    // 3. Today se joining date tak saare din ka array (latest first)
+    const allDays = [];
+    const cursor = new Date(today);
+    while (cursor >= joiningDate) {
+      allDays.push(new Date(cursor));
+      cursor.setUTCDate(cursor.getUTCDate() - 1);
+    }
+
+    const totalDays = allDays.length;
+    const totalPages = Math.ceil(totalDays / limit);
+
+    // 4. Is page ke liye slice
+    const pageDays = allDays.slice((page - 1) * limit, page * limit);
+
+    // 5. In dino ke attendance records ek hi query mein fetch karo
+    const from = pageDays[pageDays.length - 1]; // oldest day in page
+    const to = pageDays[0]; // newest day in page
+
+    const dbRecords = await Attendance.find({
+      employee: new mongoose.Types.ObjectId(employeeId),
+      date: { $gte: from, $lte: to },
+    });
+
+    // date string -> record map banao
+    const recordMap = {};
+    dbRecords.forEach((r) => {
+      const key = new Date(r.date).toISOString().split("T")[0];
+      recordMap[key] = r;
+    });
+
+    // 6. Har din ke liye merge karo
+    const records = pageDays.map((day) => {
+      const key = day.toISOString().split("T")[0];
+      const existing = recordMap[key];
+      const isSunday = day.getUTCDay() === 0;
+
+      if (existing) {
+        return {
+          _id: existing._id,
+          date: key,
+          attendanceStatus: isSunday ? "Weekly Off" : existing.attendanceStatus,
+          checkInTime: existing.checkInTime || null,
+          checkOutTime: existing.checkOutTime || null,
+          workingHours: existing.workingHours ?? null,
+          notes: existing.notes || "",
+          isNotMarked: false,
+          isSundayOff: isSunday,
+        };
+      }
+      return {
+        _id: null,
+        date: key,
+        attendanceStatus: isSunday ? "Weekly Off" : "Not Marked",
+        checkInTime: null,
+        checkOutTime: null,
+        workingHours: null,
+        notes: null,
+        isNotMarked: !isSunday, // Sunday hai toh 'Not Marked' ki tarah treat nahi karenge
+        isSundayOff: isSunday,
+      };
+    });
+
+    res.status(200).json({
+      success: true,
+      employeeId,
+      joiningDate: employee.joiningDate,
+      totalDays,
+      totalPages,
+      currentPage: page,
+      limit,
+      hasNextPage: page < totalPages,
+      hasPrevPage: page > 1,
+      records,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
   }
 };

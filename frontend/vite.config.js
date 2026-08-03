@@ -10,8 +10,13 @@ export default defineConfig({
         target: "http://localhost:5000",
         changeOrigin: true,
         secure: false,
-        timeout: 60000,       // 60 seconds — badi Base64 image ke liye
-        proxyTimeout: 60000,  // backend response timeout
+        timeout: 60000,
+        proxyTimeout: 60000,
+      },
+      "/socket.io": {
+        target: "http://localhost:5000",
+        ws: true,
+        changeOrigin: true,
       },
     },
   },

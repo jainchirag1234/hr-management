@@ -379,10 +379,9 @@ export const approveLeave = async (req, res) => {
         <p>Hi ${leave.employee.firstName},</p>
         <p><b>Leave Type:</b> ${leave.leaveType}</p>
         <p><b>From:</b> ${leave.startDate.toDateString()} <b>To:</b> ${leave.endDate.toDateString()}</p>
-        ${
-          leave.adminComment?.trim()
-            ? `<p><b>Admin Comment:</b> ${leave.adminComment}</p>`
-            : ""
+        ${leave.adminComment?.trim()
+          ? `<p><b>Admin Comment:</b> ${leave.adminComment}</p>`
+          : ""
         }
       `,
     });
@@ -465,9 +464,8 @@ export const rejectLeave = async (req, res) => {
       recipientRole: "user",
       sender: req.user._id,
       type: "LEAVE_REJECTED",
-      message: `${leave.employee.firstName}, your ${leave.leaveType} leave has been rejected. Status: Rejected${
-        adminComment ? ` (Reason: ${adminComment})` : ""
-      }`,
+      message: `${leave.employee.firstName}, your ${leave.leaveType} leave has been rejected. Status: Rejected${adminComment ? ` (Reason: ${adminComment})` : ""
+        }`,
       relatedLeave: leave._id,
     });
 

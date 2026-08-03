@@ -30,6 +30,11 @@ const payrollSchema = new mongoose.Schema(
     unpaidLeaveDays: { type: Number, default: 0, min: 0 },
     lopDeduction: { type: Number, default: 0, min: 0 },
 
+    // Pro-rated / Joining date fields
+    isProRated: { type: Boolean, default: false },
+    joiningDateInMonth: { type: Date, default: null },
+    paidDays: { type: Number, default: null }, // actual days for which salary is paid
+
     grossPay: { type: Number, required: true, min: 0 },
     totalDeductions: { type: Number, required: true, min: 0 },
     netPay: { type: Number, required: true, min: 0 },

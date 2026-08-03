@@ -107,6 +107,11 @@ const UserSchema = new mongoose.Schema(
     resetPasswordExpires: {
       type: Date,
     },
+
+    bankDetails: {
+      type: Object,
+      default: null,
+    },
   },
   {
     timestamps: true,

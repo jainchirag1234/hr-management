@@ -8,10 +8,15 @@ import User from "../models/User.js";
 const generateForEmployee = async (employeeId, month, year, generatedBy) => {
   const existingPayslip = await Payroll.findOne({ employeeId, month, year });
   if (existingPayslip) {
-    return {
-      skipped: true,
-      reason: "Payslip already generated for this month",
-    };
+    if (existingPayslip.paymentStatus === "Paid") {
+      return {
+        skipped: true,
+        reason: "Payslip already generated and paid for this month",
+      };
+    } else {
+      // Overwrite if it is still Pending
+      await Payroll.deleteOne({ _id: existingPayslip._id });
+    }
   }
 
   const structure = await SalaryStructure.findOne({
@@ -22,54 +27,105 @@ const generateForEmployee = async (employeeId, month, year, generatedBy) => {
     return { skipped: true, reason: "No active salary structure found" };
   }
 
-  const workingDays = new Date(year, month, 0).getDate();
+  // Fetch employee to get joiningDate
+  const employee = await User.findById(employeeId).select("joiningDate");
+  if (!employee) {
+    return { skipped: true, reason: "Employee not found" };
+  }
 
+  // Total days in the payroll month
+  const totalDaysInMonth = new Date(year, month, 0).getDate();
+
+  // Month boundaries
+  const startOfMonth = new Date(year, month - 1, 1);
+  const endOfMonth = new Date(year, month - 1, totalDaysInMonth, 23, 59, 59, 999);
+  const startOfNextMonth = new Date(year, month, 1);
+
+  // ─── Pro-Ration Logic ───────────────────────────────────────────────────────
+  // Check if employee joined IN this payroll month (mid-month joining)
+  let isProRated = false;
+  let joiningDateInMonth = null;
+  let salaryStartDate = startOfMonth; // default: full month
+
+  if (employee.joiningDate) {
+    const jd = new Date(employee.joiningDate);
+    const jYear = jd.getFullYear();
+    const jMonth = jd.getMonth() + 1; // 1-indexed
+
+    if (jYear === year && jMonth === month) {
+      // Joining is WITHIN this payroll month → pro-rate
+      isProRated = true;
+      joiningDateInMonth = jd;
+      salaryStartDate = new Date(jYear, jMonth - 1, jd.getDate()); // start of joining day
+    } else if (jYear > year || (jYear === year && jMonth > month)) {
+      // Employee has not yet joined → skip
+      return {
+        skipped: true,
+        reason: `Employee joining date (${jd.toDateString()}) is after the payroll month`,
+      };
+    }
+    // jYear < year || jMonth < month → employee joined before this month → full salary
+  }
+
+  // Days for which salary is to be paid
+  const paidDays = isProRated
+    ? totalDaysInMonth - salaryStartDate.getDate() + 1  // joining day to month-end (inclusive)
+    : totalDaysInMonth;
+
+  // ─── Attendance & Leave counts (from salaryStartDate onwards) ───────────────
   const attendanceCount = await Attendance.countDocuments({
-    employeeId,
-    date: {
-      $gte: new Date(year, month - 1, 1),
-      $lte: new Date(year, month, 0),
-    },
-    status: "Present",
+    employee: employeeId,
+    date: { $gte: salaryStartDate, $lt: startOfNextMonth },
+    attendanceStatus: { $in: ["Present", "Late", "Work From Home"] },
   });
 
-  const unpaidLeaveCount = await Leave.countDocuments({
-    employeeId,
-    leaveType: "Unpaid",
+  const unpaidLeaves = await Leave.find({
+    employee: employeeId,
+    leaveType: "Unpaid Leave",
     status: "Approved",
-    fromDate: {
-      $gte: new Date(year, month - 1, 1),
-      $lte: new Date(year, month, 0),
-    },
+    startDate: { $gte: salaryStartDate, $lte: endOfMonth },
   });
+  const unpaidLeaveCount = unpaidLeaves.reduce((sum, leave) => sum + leave.totalLeaveDays, 0);
 
-  const paidLeaveCount = await Leave.countDocuments({
-    employeeId,
-    leaveType: { $ne: "Unpaid" },
+  const paidLeaves = await Leave.find({
+    employee: employeeId,
+    leaveType: { $ne: "Unpaid Leave" },
     status: "Approved",
-    fromDate: {
-      $gte: new Date(year, month - 1, 1),
-      $lte: new Date(year, month, 0),
-    },
+    startDate: { $gte: salaryStartDate, $lte: endOfMonth },
   });
+  const paidLeaveCount = paidLeaves.reduce((sum, leave) => sum + leave.totalLeaveDays, 0);
 
-  const perDaySalary = structure.grossSalary / workingDays;
+  // ─── Salary Calculation ─────────────────────────────────────────────────────
+  const perDaySalary = structure.grossSalary / totalDaysInMonth;
+
+  // Pro-rated gross: (monthly salary / total days) × paid days
+  const grossPay = isProRated
+    ? Math.round(perDaySalary * paidDays)
+    : structure.grossSalary;
+
+  // Deductions are also pro-rated proportionally for mid-month joining
+  const totalDeductions = isProRated
+    ? Math.round((structure.totalDeductions / totalDaysInMonth) * paidDays)
+    : structure.totalDeductions;
+
+  // LOP deduction for unpaid leaves
   const lopDeduction = Math.round(perDaySalary * unpaidLeaveCount);
 
-  const grossPay = structure.grossSalary;
-  const totalDeductions = structure.totalDeductions;
-  const netPay = grossPay - totalDeductions - lopDeduction;
+  const netPay = Math.max(0, grossPay - totalDeductions - lopDeduction);
 
   const payslip = await Payroll.create({
     employeeId,
     salaryStructureId: structure._id,
     month,
     year,
-    workingDays,
+    workingDays: totalDaysInMonth,
     presentDays: attendanceCount,
     paidLeaveDays: paidLeaveCount,
     unpaidLeaveDays: unpaidLeaveCount,
     lopDeduction,
+    isProRated,
+    joiningDateInMonth: isProRated ? joiningDateInMonth : null,
+    paidDays,
     grossPay,
     totalDeductions,
     netPay,
@@ -145,7 +201,7 @@ export const getAllPayroll = async (req, res) => {
     if (employeeId) filter.employeeId = employeeId;
 
     const payrolls = await Payroll.find(filter)
-      .populate("employeeId", "name email department")
+      .populate("employeeId", "firstName lastName email department")
       .sort({ year: -1, month: -1 });
 
     res.status(200).json({ data: payrolls });
@@ -176,7 +232,7 @@ export const getMyPayslips = async (req, res) => {
 export const getPayslipById = async (req, res) => {
   try {
     const payslip = await Payroll.findById(req.params.id)
-      .populate("employeeId", "name email department designation")
+      .populate("employeeId", "firstName lastName email department designation")
       .populate("salaryStructureId");
 
     if (!payslip) {

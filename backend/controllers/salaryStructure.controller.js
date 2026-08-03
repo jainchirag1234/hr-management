@@ -1,5 +1,6 @@
 import SalaryStructure from "../models/SalaryStructure.js";
 import SalaryRevision from "../models/SalaryRevision.js";
+import User from "../models/User.js";
 
 // POST /api/salary/structure  (Admin only)
 export const createStructure = async (req, res) => {
@@ -20,12 +21,10 @@ export const createStructure = async (req, res) => {
       isActive: true,
     });
     if (existing) {
-      return res
-        .status(400)
-        .json({
-          message:
-            "Active salary structure already exists. Use update/revision instead.",
-        });
+      return res.status(400).json({
+        message:
+          "Active salary structure already exists. Use update/revision instead.",
+      });
     }
 
     const totalAllowances = Object.values(allowances || {}).reduce(
@@ -73,9 +72,7 @@ export const getStructure = async (req, res) => {
     });
 
     if (!structure) {
-      return res
-        .status(404)
-        .json({ message: "No active salary structure found" });
+      return res.status(200).json({ data: null, message: "No active salary structure found" });
     }
 
     res.status(200).json({ data: structure });
@@ -83,6 +80,16 @@ export const getStructure = async (req, res) => {
     res
       .status(500)
       .json({ message: "Error fetching salary structure", error: err.message });
+  }
+};
+
+// GET /api/salary/structure (Admin only)
+export const getAllStructures = async (req, res) => {
+  try {
+    const structures = await SalaryStructure.find({ isActive: true }).populate("employeeId", "firstName lastName email profileImage");
+    res.status(200).json({ data: structures });
+  } catch (err) {
+    res.status(500).json({ message: "Error fetching salary structures", error: err.message });
   }
 };
 
@@ -107,11 +114,9 @@ export const updateStructure = async (req, res) => {
       isActive: true,
     });
     if (!oldStructure) {
-      return res
-        .status(404)
-        .json({
-          message: "No existing structure to revise. Create one first.",
-        });
+      return res.status(404).json({
+        message: "No existing structure to revise. Create one first.",
+      });
     }
 
     const totalAllowances = Object.values(allowances || {}).reduce(
@@ -183,5 +188,33 @@ export const getRevisions = async (req, res) => {
     res
       .status(500)
       .json({ message: "Error fetching revisions", error: err.message });
+  }
+};
+
+// PATCH /api/salary/structure/:employeeId/bank-details
+export const updateBankDetails = async (req, res) => {
+  try {
+    const { employeeId } = req.params;
+    const { bankDetails } = req.body;
+
+    // Check if user is admin or updating their own
+    if (req.user.role !== "admin" && req.user.id !== employeeId) {
+      return res.status(403).json({ message: "Not authorized to update these bank details" });
+    }
+
+    const user = await User.findById(employeeId);
+
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found.",
+      });
+    }
+
+    user.bankDetails = bankDetails;
+    await user.save();
+
+    res.status(200).json({ message: "Bank details updated successfully", data: user.bankDetails });
+  } catch (err) {
+    res.status(500).json({ message: "Error updating bank details", error: err.message });
   }
 };
